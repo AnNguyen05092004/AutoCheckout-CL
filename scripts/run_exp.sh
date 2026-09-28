@@ -5,7 +5,8 @@
 #
 # The config file is sourced; it sets EXP (run name), N_TASKS, ARGS (arguments of pdp/main.py) and
 # optionally REUSE_TASK1 (name of a run whose task_1 is reused, for ablations that only change tasks >= 2)
-# and START_TASK (first task to run; E0 trains a single joint task N_TASKS).
+# START_TASK (first task to run; E0 trains a single joint task N_TASKS) and SKIP_EVAL (DET: the
+# class-agnostic detector is evaluated through E5).
 # Re-running the same command after an interruption continues where it stopped:
 #   - a task with task_final.pth and both prediction files is skipped;
 #   - a task with task_final.pth but a missing prediction file only gets its predictions rewritten;
@@ -54,6 +55,10 @@ for t in $(seq "${START_TASK:-1}" "$N_TASKS"); do
         "${mode[@]+"${mode[@]}"}")
 done
 
+if [[ -n ${SKIP_EVAL:-} ]]; then
+    echo "== $EXP finished, evaluation skipped ($(date '+%F %T'))"
+    exit 0
+fi
 echo "-- evaluation ($(date '+%F %T'))"
 cd "$REPO"
 for split in val test; do

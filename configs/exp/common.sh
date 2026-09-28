@@ -16,3 +16,14 @@ COMMON_ARGS=(
 )
 # Standard configuration (plan 3.4): at most 6,000 images per task, 6 epochs.
 STANDARD_ARGS=(--train_suffix _capped --epochs 6)
+
+# Full fine-tuning without prompts (B1): E0, FSA, the class-agnostic detector of E5.
+# 'backbone' matches the Hugging Face parameter names (the original default 'backbone.0' matches none).
+FINETUNE_ARGS=(--use_prompts 0 --local_query 0 --pseudo none --freeze "" --optim_groups detr
+    --lr_backbone_names backbone)
+
+# PDP with the improvements of E4 (plan 6.6): FSA start (I1), augmentation (I2), no double labels (I3).
+# Needs the FSA run (configs/exp/FSA.sh) to be finished first.
+E4_ARGS=(--repo_name "$RUNS/FSA/task_1/hf_model" --augment 1 --pseudo_gt_iou 0.5)
+
+# Order of the runs: FSA -> E4 -> ablations that reuse E4's task 1 (A1, A4, A7, A8); DET -> E5.
