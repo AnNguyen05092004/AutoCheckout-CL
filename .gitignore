@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Data, training outputs and secrets: never commit (dataset licence CC BY-NC-SA 4.0)
+data/
+runs/
+*.pth
+*.ckpt
+*.npz
+kaggle.json
+lightning_logs/
+
+# Large reference files kept locally only
+*.pdf
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
