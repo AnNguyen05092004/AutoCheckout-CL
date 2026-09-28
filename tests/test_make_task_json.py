@@ -178,3 +178,29 @@ def test_files_load_with_pycocotools_and_the_pdp_loader(pipeline):
     assert target["class_labels"].tolist() == [a["category_id"] for a in anns]
     scale = (target["size"][0] / target["orig_size"][0]).item() ** 2  # the processor resizes 40 -> 800 px
     assert target["area"].tolist() == pytest.approx([a["area"] * scale for a in anns], rel=1e-4)
+
+
+def test_joint_and_class_agnostic_files(pipeline, tmp_path):
+    root, _, config, splits, _ = pipeline
+    out = run(root, tmp_path / "tasks", "--joint", "--agnostic-out", str(tmp_path / "agnostic"))
+    train = splits["train"]
+
+    joint = load_json(out / "train_joint.json")  # every train image with any data class, every label
+    assert len(joint["annotations"]) == len(train["annotations"])
+    capped = set()
+    for task in config.data_tasks:
+        capped |= {img["id"] for img in load_json(out / f"train_task_{task.task_id}_capped.json")["images"]}
+    joint_capped = load_json(out / "train_joint_capped.json")
+    assert {img["id"] for img in joint_capped["images"]} == capped
+    assert len(joint_capped["annotations"]) == sum(a["image_id"] in capped for a in train["annotations"])
+
+    task1 = {img["id"] for img in load_json(out / "train_task_1.json")["images"]}
+    task1_capped = {img["id"] for img in load_json(out / "train_task_1_capped.json")["images"]}
+    for name, ids in (("train_task_1.json", task1), ("train_task_1_capped.json", task1_capped)):
+        data = load_json(tmp_path / "agnostic" / name)
+        assert {img["id"] for img in data["images"]} == ids
+        # option (b): every box of those images, not only task-1 SKUs, all as class 0
+        assert len(data["annotations"]) == sum(a["image_id"] in ids for a in train["annotations"])
+        assert {a["category_id"] for a in data["annotations"]} == {0}
+    val = load_json(tmp_path / "agnostic" / "val_task_1.json")
+    assert len(val["annotations"]) == len(splits["val"]["annotations"])

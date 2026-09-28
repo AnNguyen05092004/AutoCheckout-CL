@@ -96,6 +96,29 @@ def task_files(config: TaskConfig, task_id: int, train: dict[str, Any], val: dic
     }
 
 
+def joint_files(config: TaskConfig, train: dict[str, Any], capped_ids: set[int]) -> dict[str, dict[str, Any]]:
+    """B1 / E0: every train image with every label, and the union of the capped task images."""
+    data_rpc = {c.rpc_category_id for task in config.data_tasks for c in task.classes}
+    return {"train_joint.json": build_task_coco(train, config, images_with(train, data_rpc)),
+            "train_joint_capped.json": build_task_coco(train, config, capped_ids)}
+
+
+def agnostic_coco(coco: dict[str, Any], image_ids: set[int]) -> dict[str, Any]:
+    """Class-agnostic copy: the given images with every box as class 0 ("product")."""
+    images = [img for img in coco["images"] if img["id"] in image_ids]
+    annotations = [ann | {"category_id": 0} for ann in coco["annotations"] if ann["image_id"] in image_ids]
+    return {"images": images, "annotations": annotations,
+            "categories": [{"id": 0, "name": "product", "supercategory": "product"}]}
+
+
+def agnostic_files(train: dict[str, Any], val: dict[str, Any], task1_ids: set[int],
+                   task1_capped_ids: set[int]) -> dict[str, dict[str, Any]]:
+    """B1c / E5 detector (plan B3, option b): images of task 1 with all their boxes, class-agnostic."""
+    return {"train_task_1.json": agnostic_coco(train, task1_ids),
+            "train_task_1_capped.json": agnostic_coco(train, task1_capped_ids),
+            "val_task_1.json": agnostic_coco(val, {img["id"] for img in val["images"]})}
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -108,6 +131,10 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--tasks", help="comma-separated data task ids (default: every data task)")
     parser.add_argument("--cap", type=int, default=6000, help="maximum images of train_task_<t>_capped.json")
     parser.add_argument("--seed", type=int, default=0, help="seed of the capped sampling")
+    parser.add_argument("--joint", action="store_true",
+                        help="also write train_joint.json and train_joint_capped.json (E0)")
+    parser.add_argument("--agnostic-out", type=Path,
+                        help="also write class-agnostic task-1 files for the E5 detector into this folder")
     args = parser.parse_args(argv)
 
     config = TaskConfig.load(args.task_config)
@@ -130,8 +157,14 @@ def main(argv: list[str] | None = None) -> None:
                        "md5": md5_file(path)}
         print(f"{name:32s} images {files[name]['images']:6d}  objects {files[name]['objects']:7d}")
 
+    capped_ids: set[int] = set()
     for task_id in task_ids:
         for name, data in task_files(config, task_id, train, val, args.cap, args.seed).items():
+            write(name, data)
+            if name.endswith("_capped.json"):
+                capped_ids |= {img["id"] for img in data["images"]}
+    if args.joint:
+        for name, data in joint_files(config, train, capped_ids).items():
             write(name, data)
     write("val_full.json", build_task_coco(val, config))
     write("test_full.json", build_task_coco(load_json(args.test), config))
@@ -150,6 +183,15 @@ def main(argv: list[str] | None = None) -> None:
         "files": files,
     }, indent=1)
     print(f"wrote {len(files)} files and manifest.json to {args.out_dir}")
+
+    if args.agnostic_out:
+        task1_rpc = {c.rpc_category_id for c in config.task(1).classes}
+        task1_ids = images_with(train, task1_rpc)
+        task1_capped = cap_images(train, task1_ids, args.cap, args.seed, 1)
+        for name, data in agnostic_files(train, val, task1_ids, task1_capped).items():
+            save_json(args.agnostic_out / name, data)
+            print(f"{args.agnostic_out.name}/{name:24s} images {len(data['images']):6d}  "
+                  f"objects {len(data['annotations']):7d}")
 
 
 if __name__ == "__main__":

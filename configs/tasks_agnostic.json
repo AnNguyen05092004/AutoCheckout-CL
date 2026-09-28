@@ -1,0 +1,21 @@
+{
+ "name": "agnostic_product",
+ "seed": 0,
+ "num_slots": 1,
+ "num_classes": 2,
+ "tasks": [
+  {
+   "task_id": 1,
+   "offset": 0,
+   "reserved": true,
+   "classes": [
+    {
+     "label": 0,
+     "name": "product",
+     "rpc_category_id": null,
+     "supercategory": null
+    }
+   ]
+  }
+ ]
+}

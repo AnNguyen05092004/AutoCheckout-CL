@@ -26,7 +26,7 @@ python -m tools.make_task_config --categories "$RAW/instances_test2019.json" --n
 echo "== DL5: per-task files"
 python -m tools.make_task_json --task-config "configs/tasks_$TASKS.json" \
     --train-source "real=$DATA/splits/train.json" --val "$DATA/splits/val.json" --test "$DATA/splits/test.json" \
-    --out-dir "$DATA/tasks/$TASKS"
+    --out-dir "$DATA/tasks/$TASKS" --joint --agnostic-out "$DATA/tasks/agnostic_task1"
 
 echo "== DL6: pilot (train_pilot, tasks 1-2)"
 python -m tools.make_task_json --task-config "configs/tasks_$TASKS.json" \
