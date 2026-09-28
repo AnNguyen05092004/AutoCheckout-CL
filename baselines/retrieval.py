@@ -146,7 +146,6 @@ def embed_crops(model: torch.nn.Module, items: Sequence[tuple[Path, np.ndarray]]
 
     def forward(crops: list[torch.Tensor]) -> np.ndarray:
         pixels = (torch.cat(crops).to(device).float() / 255 - mean) / std
-        # fp32: bf16 autocast fails in the Dinov2 patch embedding with torch 2.2 (bf16 input, fp32 bias)
         cls = model(pixel_values=pixels).last_hidden_state[:, 0]
         return F.normalize(cls.float(), dim=1).cpu().numpy()
 

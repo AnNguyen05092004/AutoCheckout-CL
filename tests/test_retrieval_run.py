@@ -103,7 +103,7 @@ def _argv(data, command, *extra):
 
 def _run(monkeypatch, data, command, *extra):
     model = CountingModel()
-    monkeypatch.setattr(retrieval, "load_backbone", lambda name, device: model)
+    monkeypatch.setattr(retrieval, "load_backbone", lambda name, device: model.to(device))  # like the real loader
     retrieval.main(_argv(data, command, *extra))
     return model
 
