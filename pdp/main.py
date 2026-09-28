@@ -18,6 +18,9 @@ from datasets.coco_eval import CocoEvaluator
 from engine import local_trainer, Evaluator
 from inference import write_predictions
 from checkpointing import ResumeCheckpoint, remove_resume_checkpoints, resume_path
+from autocheckout.runinfo import RunInfo
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
 # from transformers import AutoImageProcessor
 from lightning.pytorch.loggers import CSVLogger
 from lightning.pytorch import seed_everything
@@ -313,14 +316,23 @@ def run_task(args, task_id, output_root, processor):
     print('Logging: args ', args, file=args.log_file)
     args.task = str(task_id)
     final_path = os.path.join(args.output_dir, 'task_final.pth')
-
+    tr_ann = os.path.join(args.task_ann_dir, f'train_task_{task_id}{args.train_suffix}.json')
     val_ann = os.path.join(args.task_ann_dir, f'val_task_{task_id}.json')
+
+    # R3: provenance of this session (code, environment, data checksums); closed at the end
+    run_info = RunInfo(os.path.join(args.output_dir, 'run_info.json'))
+    run_info.start(vars(args), repo_root=REPO_ROOT, files={
+        'task_config': args.task_config, 'train': None if args.predict_only else tr_ann, 'val_task': val_ann,
+        'val_full': os.path.join(args.task_ann_dir, 'val_full.json'),
+        'test_full': os.path.join(args.task_ann_dir, 'test_full.json'),
+        'prev_ckpt': args.prev_ckpt if task_id == args.start_task else None})
+    ckpt_path = None
+
     val_dataset = CocoDetection(img_folder=args.test_img_dir, ann_file=val_ann, processor=processor)
     val_dataloader = DataLoader(val_dataset, collate_fn=val_dataset.collate_fn, batch_size=args.batch_size,
                                 num_workers=args.num_workers)
     train_dataloader = None
     if not args.predict_only:
-        tr_ann = os.path.join(args.task_ann_dir, f'train_task_{task_id}{args.train_suffix}.json')
         train_dataset = CocoDetection(img_folder=args.train_img_dir, ann_file=tr_ann, processor=processor)
         train_dataloader = make_train_loader(train_dataset, args)
 
@@ -368,6 +380,7 @@ def run_task(args, task_id, output_root, processor):
         remove_resume_checkpoints(args.output_dir)
 
     write_task_predictions(args, trainer, task_id, processor)
+    run_info.finish(mode='predict' if args.predict_only else 'train', resumed_from=ckpt_path)
     args.log_file.close()
 
 def main(args):
