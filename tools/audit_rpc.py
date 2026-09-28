@@ -321,7 +321,8 @@ def render_markdown(result: dict[str, Any]) -> str:
         lines += ["", "## Byte-identical images", "",
                   f"- {m['files_hashed']} files hashed; {m['duplicate_sets']} duplicate sets "
                   f"({m['files_in_duplicate_sets']} files), spanning several groups: "
-                  f"{m.get('sets_spanning_groups', 'not computed')}; first sets: {m['sets'][:5]}."]
+                  f"{m.get('sets_spanning_groups', 'not computed')}; first sets (up to 3 files each): "
+                  f"{[names[:3] for names in m['sets'][:3]]}."]
     return "\n".join(lines) + "\n"
 
 
