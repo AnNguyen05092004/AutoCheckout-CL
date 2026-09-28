@@ -95,3 +95,14 @@ def make_raw_rpc(root: Path) -> dict[str, Any]:
         "shared_file_name": f"{shared_time + timedelta(seconds=22):%Y%m%d-%H-%M-%S}-7001.jpg",
         "duplicate": sorted(test_names[:2]),
     }
+
+
+def make_resized_rpc(root: Path, size: int = 40) -> tuple[Path, Path]:
+    """Synthetic raw data run through DL2; returns (resized image folder, merged annotation)."""
+    from tools.resize import main as resize
+
+    make_raw_rpc(root / "raw")
+    images, ann = root / "checkout", root / "ann" / "checkout.json"
+    resize(["--raw", str(root / "raw"), "--out-dir", str(images), "--ann-out", str(ann), "--size", str(size),
+            "--workers", "1"])
+    return images, ann
