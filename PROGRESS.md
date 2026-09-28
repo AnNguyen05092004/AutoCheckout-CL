@@ -151,6 +151,8 @@ Mọi thông tin cần để làm tiếp nằm trong file này, `IMPLEMENTATION_
 - **ĐANG CHẠY (từ 17:17 UTC 28/09): hàng đợi chẩn đoán**, tmux `queue`, `scripts/run_queue.sh`, file `/data/runs/queue.txt`, log `/data/runs/queue.log`.
   - Thứ tự: `FSA_pilot_eb4` → `P2_eb4` → `P3_eb4`. Giống FSA_pilot/P2/P3 nhưng batch hiệu dụng 4 (không gộp gradient), tức gấp 8 lần số bước với cùng lượng tính toán. Tổng khoảng 5 giờ.
   - **VM tự tắt khi hết hàng đợi.**
+  - **Đã đổi `configs/exp/common.sh` sang batch hiệu dụng 4** cho mọi thí nghiệm sau pilot (plan phụ lục C). Không tốn thêm GPU. P1, P2, P3 và FSA_pilot ghim lại batch 32 như lúc chạy.
+  - **Đã thêm `FSA` và `DET` vào cuối hàng đợi.** Cả hai là fine-tune toàn bộ, đã được FSA_pilot_eb4 kiểm chứng, cần cho E4 và E5. Khoảng 2 giờ mỗi cái; dự kiến hàng đợi xong khoảng 02:00 UTC ngày 29/09.
   - Câu hỏi cần trả lời: với đủ bước, PDP và fine-tune toàn bộ đạt mAP bao nhiêu trên pilot? Prototype có đủ lớp không? Kết quả quyết định cấu hình train (batch hiệu dụng, số epoch) cho E0–E4, **cần nhóm chốt** vì ảnh hưởng ngân sách GPU.
 
 ### Việc tiếp theo, theo thứ tự

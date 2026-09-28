@@ -5,12 +5,15 @@ TASK_DIR=$DATA/tasks/100-4x25_seed0
 
 # Model and optimisation as in the PDP code / paper. BATCH_SIZE 4: benchmark on the L4 (28/09), 0.336 s/image and
 # 6.2 GB peak for a task >= 2 step (batch 2: 0.374 s/image, 4.5 GB).
+# Effective batch 4, i.e. no gradient accumulation (the original code accumulates to 32). The pilot (28/09) at 32
+# was far too short: 364 optimiser steps on 2,910 images left FSA_pilot at a val mAP50 of 0.085, against 0.675 at 4
+# (FSA_pilot_eb4, same data and compute). A task of RPC has about 10x fewer images than one of COCO in the paper.
 BATCH_SIZE=${BATCH_SIZE:-4}
 COMMON_ARGS=(
     --task_config "$TASK_CFG" --n_classes 225
     --task_ann_dir "$TASK_DIR" --train_img_dir "$DATA/checkout_800" --test_img_dir "$DATA/checkout_800"
     --repo_name SenseTime/deformable-detr --accelerator gpu --n_gpus 1 --require_kernel 1
-    --batch_size "$BATCH_SIZE" --eff_batch_size 32 --num_workers 4
+    --batch_size "$BATCH_SIZE" --eff_batch_size 4 --num_workers 4
     --lr 1e-4 --lr_old 1e-5 --eval_epochs 100
     --use_prompts 1 --num_prompts 100 --prompt_len 10 --local_query 1 --lambda_query 0.1
     --freeze backbone,encoder,decoder --new_params class_embed,prompts
