@@ -278,10 +278,21 @@ bash scripts/run_exp.sh configs/exp/P2.sh --shutdown 2>&1 | tee -a /data/runs/P2
   - `metrics_count_test.json` và `.md`;
   - thư mục `task_<t>/`, bố cục như `docs/formats.md` mục 6.
 
+**Chạy nhiều thí nghiệm liên tiếp bằng hàng đợi** (`scripts/run_queue.sh`):
+
+```bash
+printf '%s\n' FSA E4 >> /data/runs/queue.txt     # mỗi dòng một tên trong configs/exp/
+tmux new -d -s queue 'bash ~/AutoCheckout-CL/scripts/run_queue.sh'
+```
+
+- File hàng đợi được đọc lại trước mỗi thí nghiệm, nên có thể thêm tên trong lúc đang chạy.
+- Mỗi thí nghiệm xong ghi một dòng `<tên> exit=<mã>` vào `/data/runs/queue.log` và không bao giờ chạy lại. Output ở `/data/runs/<tên>.log`.
+- Hết hàng đợi thì VM tự tắt, kể cả khi có thí nghiệm lỗi.
+
 ### 7.3 Khi VM bị tắt giữa chừng (Spot, lỗi, bảo trì)
 
 1. Bật VM lại (mục 2.1) và SSH vào.
-2. Chạy lại **đúng lệnh cũ**. Script tự xử lý:
+2. Chạy lại **đúng lệnh cũ** (với hàng đợi: chạy lại `run_queue.sh`; thí nghiệm đang dở chưa có dòng `exit=` nên được chạy tiếp). Script tự xử lý:
    - task đã xong thì bỏ qua;
    - task thiếu file dự đoán thì chỉ dự đoán lại;
    - task đang dở thì nối tiếp từ `task_<t>/last.ckpt` (lưu mỗi 30 phút và mỗi cuối epoch).
