@@ -15,13 +15,13 @@ class Prompt(nn.Module):
         self.emb_d = emb_d
         self.key_d = key_dim
         self.n_tasks = n_tasks
-        self.total_classes = 80
+        # F2: one private prompt per class slot of every task. The original hard-coded 80 COCO
+        # classes here, which breaks (index errors or empty task pools) for other class splits.
+        self.task_num_classes = list(task_num_classes)
+        self.total_classes = sum(self.task_num_classes)
         self._init_smart(emb_d, prompt_param)
         #print(prompt_param)
-        self.task_num_classes = task_num_classes
-        self.pool_sizes = [
-            int(80 * (n / self.total_classes))
-            for n in self.task_num_classes]
+        self.pool_sizes = list(self.task_num_classes)
         # print(self.task_num_classes)
         if args.local_query:
             self.query_tf = nn.Sequential(
@@ -57,7 +57,7 @@ class Prompt(nn.Module):
     def _init_smart(self, emb_d, prompt_param):
         # prompt basic param
         self.shared_size = int(prompt_param[0])
-        self.private_size = int(80)
+        self.private_size = self.total_classes
         self.e_p_length = int(prompt_param[1])
         self.e_layers = [0, 1, 2, 3, 4, 5]
 
@@ -196,6 +196,30 @@ class Prompt(nn.Module):
         self.task_count = task_id
         print('Setting task id : ', task_id)
 
+    @torch.no_grad()
+    def init_task_prompts(self):
+        """Initialise the private prompts (p, k, a) of the current task (F2).
+
+        The constructor only initialises the slots of task 0. Without this call the slots of
+        later tasks stay all-zero, and zero slots receive zero gradient (their key, attention
+        vector and prompt only enter through products with each other), so they never learn.
+
+        New slots are random unit vectors, orthogonal to each other and to the span of the
+        slots of earlier tasks, which is what gram_schmidt() intends. gram_schmidt() itself is
+        not reused: it assumes the earlier slots are still orthonormal, which stops being true
+        once they have been trained, and then leaves the new slots correlated with them.
+
+        Call after set_task_id() and after loading the previous task's weights, before the
+        optimizer is built. Slots of earlier and later tasks are left unchanged.
+        """
+        s = sum(self.pool_sizes[:self.task_count])
+        f = s + self.pool_sizes[self.task_count]
+        for e in self.e_layers:
+            for name in ('p', 'k', 'a'):
+                param = getattr(self, f'private_{name}_{e}')
+                rows = param.view(param.shape[0], -1)
+                rows[s:f] = orthonormal_rows(rows[:s], f - s)
+
     def forward(self, x_querry, l, x_block, train=False, task_id=None):
         if len(x_querry.shape) != 2:
             query_wt = self.query_tf(x_querry.view(x_querry.shape[0], -1))
@@ -260,6 +284,19 @@ class Prompt(nn.Module):
                 loss += self.diversity_lambda * diversity_loss
 
         return [Ek, Ev], loss, x_block
+
+
+def orthonormal_rows(existing, n):
+    """n random unit rows, orthogonal to each other and to the span of the rows of `existing`."""
+    dim = existing.shape[1]
+    if existing.shape[0] + n > dim:
+        raise ValueError(f'cannot fit {n} new orthogonal rows next to {existing.shape[0]} in dimension {dim}')
+    new = torch.randn(n, dim, dtype=existing.dtype, device=existing.device)
+    if existing.shape[0]:
+        basis, _ = torch.linalg.qr(existing.T)  # orthonormal basis of the span of the existing rows
+        new = new - (new @ basis) @ basis.T
+    q, _ = torch.linalg.qr(new.T)
+    return q.T
 
 
 def ortho_penalty(t):

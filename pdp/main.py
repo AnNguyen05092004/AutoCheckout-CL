@@ -196,6 +196,10 @@ def get_args_parser():
     parser.add_argument('--task_config', default='', type=str,
                         help='Task config JSON (configs/tasks_*.json); replaces the hard-coded COCO task split')
 
+    # Fixes of the original code (IMPLEMENTATION_PLAN.md 6.3); 0 restores the original behaviour (pilot P1)
+    parser.add_argument('--init_new_prompts', default=1, type=int,
+                        help='F2: Gram-Schmidt init of the private prompts of each new task')
+
     # Bounding box thresholds
     parser.add_argument('--bbox_thresh', default=0.3, type=float, 
                         help='Bounding box threshold for positive detections')
@@ -319,6 +323,11 @@ def main(args):
                 args.resume=0
             else:
                 trainer.resume(os.path.join(args.checkpoint_dir,args.checkpoint_base))
+
+        # F2: must run after set_task_id() and after the previous weights are loaded (loading would
+        # otherwise overwrite the new slots with the zeros saved at the end of the previous task).
+        if args.use_prompts and args.init_new_prompts and not args.eval:
+            trainer.model.model.prompts.init_task_prompts()
 
         ####################### Training/Evaluating on Current classes ################################################
         if args.eval:
