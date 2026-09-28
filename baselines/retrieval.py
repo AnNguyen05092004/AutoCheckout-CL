@@ -25,8 +25,8 @@ Row score = detector score x class confidence, in [0, 1]: it only has to rank ro
 thresholded (counting picks the threshold on val).
 
 Embedding: crop grown by ``--margin`` x the box size on each side, square resize to 224
-(bicubic), ImageNet normalisation, CLS token after the final layer norm, L2-normalised; bf16
-autocast on CUDA; stored as float16.
+(bicubic), ImageNet normalisation, CLS token after the final layer norm, L2-normalised; computed
+in fp32; stored as float16.
 
 Usage (every data task of the config)::
 
@@ -146,8 +146,8 @@ def embed_crops(model: torch.nn.Module, items: Sequence[tuple[Path, np.ndarray]]
 
     def forward(crops: list[torch.Tensor]) -> np.ndarray:
         pixels = (torch.cat(crops).to(device).float() / 255 - mean) / std
-        with torch.autocast(device.type, dtype=torch.bfloat16, enabled=device.type == "cuda"):
-            cls = model(pixel_values=pixels).last_hidden_state[:, 0]
+        # fp32: bf16 autocast fails in the Dinov2 patch embedding with torch 2.2 (bf16 input, fp32 bias)
+        cls = model(pixel_values=pixels).last_hidden_state[:, 0]
         return F.normalize(cls.float(), dim=1).cpu().numpy()
 
     out, pending, n_pending = [], [], 0

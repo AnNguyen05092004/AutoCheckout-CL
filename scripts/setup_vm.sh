@@ -13,8 +13,9 @@ VENV=${VENV:-$HOME/venvs/pdp}
 sudo mkdir -p /data/rpc /data/runs
 sudo chmod 1777 /data /data/rpc /data/runs
 
-if ! python3 -m venv --help >/dev/null 2>&1 || ! command -v unzip >/dev/null; then
-    sudo apt-get update -qq && sudo apt-get install -y -qq python3.10-venv unzip
+# build-essential: the image has nvcc but no C++ compiler, needed to build the CUDA kernel
+if ! command -v unzip >/dev/null || ! command -v c++ >/dev/null || ! dpkg -s python3.10-venv >/dev/null 2>&1; then
+    sudo apt-get update -qq && sudo apt-get install -y -qq python3.10-venv unzip build-essential tmux
 fi
 [[ -d $VENV ]] || python3 -m venv "$VENV"
 # shellcheck source=/dev/null

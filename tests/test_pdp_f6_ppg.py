@@ -77,8 +77,11 @@ def test_trainer_appends_pseudo_labels_to_targets():
                              prototype_sim_thresh=0.5, prototype_nearest=0, pseudo_gt_iou=0.0))
     targets = [{"class_labels": torch.tensor([3]), "boxes": torch.tensor([[0.5, 0.5, 0.1, 0.1]])}]
     engine.local_trainer.add_pseudo_labels(trainer, teacher_out, targets)
-    assert targets[0]["class_labels"].tolist() == [3, 0, 2]
-    torch.testing.assert_close(targets[0]["boxes"][1:], boxes[0, [0, 1]])
+    # both candidates score 0.9: their order is not defined, so compare (label, box) pairs
+    added = {(int(label), tuple(box.tolist())) for label, box in zip(targets[0]["class_labels"][1:],
+                                                                       targets[0]["boxes"][1:], strict=True)}
+    assert targets[0]["class_labels"][0] == 3
+    assert added == {(0, tuple(boxes[0, 0].tolist())), (2, tuple(boxes[0, 1].tolist()))}
 
 
 def test_original_selection_accepts_the_first_current_class():
