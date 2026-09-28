@@ -1,0 +1,157 @@
+"""Product-counting metrics (V3, plan section 6.5), matching the RPC leaderboard tool
+(``rpctool``, https://github.com/RPC-Dataset/RPC-Leaderboard, ``evaluate_v1/evaluate.py``).
+
+``rpctool`` is not installed here (it depends on ``boxx``, which we were told not to
+install); the score formulas below are a direct transcription of
+``rpctool/evaluate_v1/evaluate.py``'s ``score1``/``score2``/``score4``/``score5``, cross
+checked in ``tests/test_counting.py`` against a second transcription kept in the test file.
+
+Per image and class, the predicted count is the number of ``top1_per_query()`` rows with
+score >= threshold (one label per physical query/object, per docs/formats.md section 5);
+the GT count comes from the annotation. Only learned classes (label < seen_classes) are
+counted on both sides -- unlearned GT objects are ignored entirely, and mid-run cAcc is
+therefore always computed on the SKUs learned so far, never on the full 200.
+
+Deviation from rpctool: rpctool always evaluates all K=200 RPC classes, each guaranteed to
+have GT somewhere in the (fixed, full) split it runs on, so ``score4``/``score5``'s
+per-class average over K never divides by zero. Here K is the number of *learned* classes,
+which can be small (e.g. stage 1 of a 5-task config) and is not guaranteed to have every
+class present with a positive count in every image subset we evaluate (e.g. a single
+level). Classes with zero total GT in the evaluated subset are therefore excluded from the
+``mCCD``/``mCIoU`` class averages (averaged over the classes that do have GT, ``K_eff``)
+instead of producing a division by zero; ``cAcc`` and ``ACD`` are unaffected by this since
+they do not divide per class. This choice, and both ``K`` and ``K_eff``, are recorded in
+every score dict so a reader can see when it applies.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from typing import Any
+
+import numpy as np
+from pycocotools.coco import COCO
+
+from autocheckout.predictions import Predictions
+
+#: Deterministic grid, plan section 6.5: 0.05..0.95 step 0.01 (91 points).
+THRESHOLD_GRID: tuple[float, ...] = tuple(round(0.05 + 0.01 * i, 2) for i in range(91))
+
+TIE_BREAK_NOTE = "ties broken by the smallest threshold that reaches the maximum cAcc"
+
+ZERO_GT_NOTE = (
+    "classes with zero GT in the evaluated image subset are excluded from the mCCD/mCIoU "
+    "class averages (divided by K_eff, not K); cAcc and ACD are unaffected"
+)
+
+
+def gt_counts(coco_gt: COCO, image_ids: Sequence[int], labels: Sequence[int]) -> np.ndarray:
+    """``counts[i, c]`` = number of GT objects of ``labels[c]`` in ``image_ids[i]``."""
+    label_index = {label: c for c, label in enumerate(labels)}
+    img_index = {image_id: i for i, image_id in enumerate(image_ids)}
+    counts = np.zeros((len(image_ids), len(labels)), dtype=np.int64)
+    for ann in coco_gt.dataset.get("annotations", []):
+        c = label_index.get(ann["category_id"])
+        i = img_index.get(ann["image_id"])
+        if c is not None and i is not None:
+            counts[i, c] += 1
+    return counts
+
+
+def pred_counts(
+    preds: Predictions, image_ids: Sequence[int], labels: Sequence[int], threshold: float
+) -> np.ndarray:
+    """``counts[i, c]`` = number of top1-per-query detections of ``labels[c]`` in
+    ``image_ids[i]`` with score >= ``threshold``."""
+    top1 = preds.top1_per_query()
+    mask = top1.score >= threshold
+    label_index = {label: c for c, label in enumerate(labels)}
+    img_index = {image_id: i for i, image_id in enumerate(image_ids)}
+    counts = np.zeros((len(image_ids), len(labels)), dtype=np.int64)
+    for image_id, label in zip(top1.image_id[mask].tolist(), top1.label[mask].tolist(), strict=True):
+        c = label_index.get(label)
+        i = img_index.get(image_id)
+        if c is not None and i is not None:
+            counts[i, c] += 1
+    return counts
+
+
+def counting_scores(pred: np.ndarray, gt: np.ndarray) -> dict[str, float]:
+    """cAcc, ACD, mCCD, mCIoU, transcribed from rpctool (see module docstring). ``pred`` and
+    ``gt`` are (n_images, n_classes) count matrices, aligned by row and column."""
+    n_images, k = gt.shape
+    if n_images == 0:
+        return {"cAcc": float("nan"), "ACD": float("nan"), "mCCD": float("nan"), "mCIoU": float("nan"),
+                "K": k, "K_eff": 0}
+
+    # score1 (cAcc): fraction of images whose full count vector matches exactly.
+    cacc = float(np.mean(np.all(pred == gt, axis=1)))
+    # score2 (ACD): mean over images of the total absolute count difference.
+    acd = float(np.sum(np.abs(pred - gt)) / n_images)
+
+    class_gt = gt.sum(axis=0)
+    has_gt = class_gt > 0
+    k_eff = int(has_gt.sum())
+    if k_eff:
+        # score4 (mCCD): per class, sum|pred-gt| / sum(gt), averaged over classes with GT.
+        class_cd = np.abs(pred - gt).sum(axis=0)
+        mccd = float(np.sum(class_cd[has_gt] / class_gt[has_gt]) / k_eff)
+        # score5 (mCIoU): per class, sum(min(pred,gt)) / sum(max(pred,gt)), averaged.
+        class_min = np.minimum(pred, gt).sum(axis=0)
+        class_max = np.maximum(pred, gt).sum(axis=0)
+        mciou = float(np.sum(class_min[has_gt] / class_max[has_gt]) / k_eff)
+    else:
+        mccd = float("nan")
+        mciou = float("nan")
+
+    return {"cAcc": cacc, "ACD": acd, "mCCD": mccd, "mCIoU": mciou, "K": k, "K_eff": k_eff}
+
+
+def select_threshold(
+    coco_gt: COCO, preds: Predictions, labels: Sequence[int], thresholds: Sequence[float] = THRESHOLD_GRID
+) -> tuple[float, dict[str, float]]:
+    """Grid search maximising cAcc (plan section 6.5, V3). Deterministic tie-break: the
+    smallest threshold that reaches the maximum cAcc (thresholds are scanned ascending and
+    only a strictly larger cAcc replaces the current best)."""
+    image_ids = sorted(coco_gt.getImgIds())
+    gt = gt_counts(coco_gt, image_ids, labels)
+    best_threshold, best_scores = None, None
+    for threshold in thresholds:
+        scores = counting_scores(pred_counts(preds, image_ids, labels, threshold), gt)
+        if best_scores is None or scores["cAcc"] > best_scores["cAcc"]:
+            best_threshold, best_scores = float(threshold), scores
+    return best_threshold, best_scores
+
+
+def scores_by_level(
+    coco_gt: COCO, preds: Predictions, labels: Sequence[int], threshold: float
+) -> dict[str, dict[str, float]]:
+    """Counting scores at a fixed threshold, overall and broken down by ``images[].level``."""
+    all_images = coco_gt.getImgIds()
+    result = {"overall": counting_scores(pred_counts(preds, all_images, labels, threshold),
+                                          gt_counts(coco_gt, all_images, labels))}
+    for level in ("easy", "medium", "hard"):
+        level_images = [i for i in all_images if coco_gt.imgs[i].get("level") == level]
+        result[level] = counting_scores(pred_counts(preds, level_images, labels, threshold),
+                                         gt_counts(coco_gt, level_images, labels))
+    return result
+
+
+def oracle_by_level(coco_gt: COCO, preds: Predictions, labels: Sequence[int]) -> dict[str, dict[str, Any]]:
+    """rpctool-style oracle: threshold searched on the evaluated subset itself ("looking at
+    the answer"), reported per level plus overall -- for leaderboard comparison only."""
+    all_images = coco_gt.getImgIds()
+    subsets = {"overall": all_images}
+    for level in ("easy", "medium", "hard"):
+        subsets[level] = [i for i in all_images if coco_gt.imgs[i].get("level") == level]
+
+    result: dict[str, dict[str, Any]] = {}
+    for name, image_ids in subsets.items():
+        gt = gt_counts(coco_gt, image_ids, labels)
+        best_threshold, best_scores = None, None
+        for threshold in THRESHOLD_GRID:
+            scores = counting_scores(pred_counts(preds, image_ids, labels, threshold), gt)
+            if best_scores is None or scores["cAcc"] > best_scores["cAcc"]:
+                best_threshold, best_scores = float(threshold), scores
+        result[name] = {"threshold": best_threshold, **best_scores}
+    return result
