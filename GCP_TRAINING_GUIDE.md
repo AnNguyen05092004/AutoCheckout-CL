@@ -34,10 +34,10 @@ export RUNS=/data/runs               # kết quả train
 export VENV=~/venvs/pdp              # môi trường Python (scripts/setup_vm.sh)
 ```
 
-Để gõ lệnh ngắn hơn trên Mac:
+Để gõ lệnh ngắn hơn trên Mac (mảng dùng được cả với zsh lẫn bash; nếu gộp tên VM và các cờ vào một biến chuỗi thì zsh không tách chúng ra được):
 
 ```bash
-export VM="auto-cl --zone=us-central1-c --project=project-95a0d104-9d0f-4aa1-ba0"
+GC=(--zone=us-central1-c --project=project-95a0d104-9d0f-4aa1-ba0)   # dùng: gcloud compute ... auto-cl "${GC[@]}"
 ```
 
 ---
@@ -58,13 +58,13 @@ export VM="auto-cl --zone=us-central1-c --project=project-95a0d104-9d0f-4aa1-ba0
 ### 2.1 Bật VM
 
 ```bash
-gcloud compute instances start $VM
+gcloud compute instances start auto-cl "${GC[@]}"
 ```
 
 ### 2.2 SSH
 
 ```bash
-gcloud compute ssh $VM
+gcloud compute ssh auto-cl "${GC[@]}"
 ```
 
 Có thể SSH từ Console (Compute Engine → VM instances → `auto-cl` → SSH). Lưu ý:
@@ -75,7 +75,7 @@ Có thể SSH từ Console (Compute Engine → VM instances → `auto-cl` → SS
 ### 2.3 Tắt VM
 
 ```bash
-gcloud compute instances stop $VM
+gcloud compute instances stop auto-cl "${GC[@]}"
 ```
 
 Hoặc trong VM: `sudo shutdown -h now`. Khi VM tắt, file trên ổ vẫn còn; chỉ còn tính tiền ổ (khoảng 261 nghìn VND/tháng cho 100 GB `pd-balanced`).
@@ -83,7 +83,7 @@ Hoặc trong VM: `sudo shutdown -h now`. Khi VM tắt, file trên ổ vẫn còn
 ### 2.4 Xem trạng thái
 
 ```bash
-gcloud compute instances describe $VM --format="value(status,scheduling.provisioningModel)"
+gcloud compute instances describe auto-cl "${GC[@]}" --format="value(status,scheduling.provisioningModel)"
 ```
 
 ### 2.5 (Khuyên dùng) Chuyển sang Spot để giảm khoảng 40% chi phí
@@ -91,10 +91,10 @@ gcloud compute instances describe $VM --format="value(status,scheduling.provisio
 Nên chuyển khi code resume đã chạy được (task R1/R2), vì Spot có thể bị Google thu hồi giữa chừng. Lệnh chỉ chạy được khi VM **đang tắt**:
 
 ```bash
-gcloud compute instances stop $VM
-gcloud compute instances set-scheduling $VM \
+gcloud compute instances stop auto-cl "${GC[@]}"
+gcloud compute instances set-scheduling auto-cl "${GC[@]}" \
   --provisioning-model=SPOT --instance-termination-action=STOP --no-restart-on-failure
-gcloud compute instances start $VM
+gcloud compute instances start auto-cl "${GC[@]}"
 ```
 
 Lưu ý khi chạy Spot (chi tiết ở mục 3.6 của plan):
@@ -104,7 +104,7 @@ Lưu ý khi chạy Spot (chi tiết ở mục 3.6 của plan):
 - Có lúc hết GPU Spot nên không bật được VM. Nếu đang gấp, chuyển tạm về on-demand (VM phải đang tắt):
 
 ```bash
-gcloud compute instances set-scheduling $VM --provisioning-model=STANDARD
+gcloud compute instances set-scheduling auto-cl "${GC[@]}" --provisioning-model=STANDARD
 ```
 
 Khi đã chạy Spot, xem VM có bị thu hồi không:
@@ -199,7 +199,7 @@ Dataset gốc chỉ có trên Kaggle (cần tài khoản miễn phí). Bản mir
 
 ```bash
 gcloud compute scp ~/Downloads/kaggle.json auto-cl:kaggle.json --zone=us-central1-c --project=project-95a0d104-9d0f-4aa1-ba0
-gcloud compute ssh $VM --command 'mkdir -p ~/.kaggle && mv ~/kaggle.json ~/.kaggle/ && chmod 600 ~/.kaggle/kaggle.json'
+gcloud compute ssh auto-cl "${GC[@]}" --command 'mkdir -p ~/.kaggle && mv ~/kaggle.json ~/.kaggle/ && chmod 600 ~/.kaggle/kaggle.json'
 ```
 
 ### 6.2 Tải và chuẩn bị dữ liệu (trên VM, trong tmux)
@@ -313,10 +313,10 @@ python -m tools.summarize --runs /data/runs/E0 /data/runs/E1 /data/runs/E2 /data
 ## 8. Theo dõi từ Mac (chỉ đọc, không ảnh hưởng job)
 
 ```bash
-gcloud compute ssh $VM --command "tail -n 30 /data/runs/<tên>.log"                          # log
-gcloud compute ssh $VM --command "nvidia-smi"                                               # GPU có đang chạy
-gcloud compute ssh $VM --command "tmux capture-pane -pt train:0.0 -S -120"                  # 120 dòng cuối của tmux
-gcloud compute ssh $VM --command "ls /data/runs/*/task_*/task_final.pth; df -h /"           # task đã xong, dung lượng
+gcloud compute ssh auto-cl "${GC[@]}" --command "tail -n 30 /data/runs/<tên>.log"                          # log
+gcloud compute ssh auto-cl "${GC[@]}" --command "nvidia-smi"                                               # GPU có đang chạy
+gcloud compute ssh auto-cl "${GC[@]}" --command "tmux capture-pane -pt train:0.0 -S -120"                  # 120 dòng cuối của tmux
+gcloud compute ssh auto-cl "${GC[@]}" --command "ls /data/runs/*/task_*/task_final.pth; df -h /"           # task đã xong, dung lượng
 ```
 
 ---
@@ -361,6 +361,6 @@ gcloud compute scp auto-cl:/data/runs/<tên>.tgz "/Users/an/Documents/Do An/Auto
 | `No space left on device` | `df -h /`, `du -sh $RUNS/*`; xóa `last.ckpt` của các task đã xong (vẫn giữ `task_final.pth`); xóa zip RPC; hoặc tăng dung lượng ổ (mục 4) |
 | `gcloud` trên Mac báo `NameResolutionError ... compute.googleapis.com` | DNS của mạng đang dùng (ví dụ mạng trường) chập chờn. Thử lại sau vài giây, hoặc đổi mạng hoặc DNS (ví dụ 8.8.8.8) |
 | VM tự tắt giữa chừng | Xem mục 2.4 và 2.5; làm theo mục 7.1 |
-| Không bật được VM (báo hết tài nguyên GPU) | Đợi rồi thử lại. Nếu kéo dài: tạo VM ở zone khác, vì ổ đĩa nằm cố định ở `us-central1-c` |
+| Không bật được VM, báo `STOCKOUT` (zone tạm hết GPU L4, kể cả on-demand) | Đợi vài phút rồi thử lại. Ngày 29/09 gặp lỗi này một lần, lần thử thứ hai bật được. Nếu kéo dài: tạo snapshot ổ rồi tạo VM ở zone khác có L4 (ổ đĩa nằm cố định ở `us-central1-c`) |
 | `git fetch`/`reset` trên VM báo lỗi | Thư mục `~/AutoCheckout-CL` trên VM có thể xóa rồi clone lại (mục 5.1); dữ liệu và kết quả nằm ở `/data` nên không mất |
 | `RuntimeError: Multi-scale deformable attention: PyTorch fallback` | Cấu hình đặt `--require_kernel 1` mà kernel chưa build được: xem dòng `kernel: False` ở trên |
