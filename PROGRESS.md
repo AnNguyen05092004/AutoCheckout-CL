@@ -107,50 +107,73 @@ Trạng thái: **Xong** = đạt tiêu chí nghiệm thu trong plan; **Đang là
 - **28/09/2026**: nhóm chốt E5 = phương án b; giữ 14 snapshot ổ cũ; đẩy repo lên GitHub (public). Xong R1, R2, R3, I1–I5, B1, B2, V4, V5 (code), cấu hình mọi thí nghiệm, script VM, viết lại guide; V2 nhanh hơn khoảng 5 lần (chính xác tuyệt đối). 178 test đạt.
 - 28/09: nhóm chốt E5 = phương án b; giữ 14 snapshot ổ cũ. Kiểm tra nguồn dữ liệu: mirror HuggingFace thiếu tên file và `level`, nên vẫn cần Kaggle. Ảnh quầy RPC không cố định 1800 px (khoảng 1750–1890, vuông); DL2 đã xử lý theo từng ảnh.
 
-## Handoff (cập nhật 28/09/2026)
+## Handoff (cập nhật 28/09/2026, khoảng 21:50 giờ VN — đọc phần này trước tiên)
 
-Mọi thông tin cần để làm tiếp nằm trong file này, `IMPLEMENTATION_PLAN.md` (phụ lục B, C) và `docs/formats.md`.
+Mọi thông tin cần để làm tiếp nằm trong file này, `IMPLEMENTATION_PLAN.md` (v1.3 + phụ lục B, C; F13 ở §6.3), `GCP_TRAINING_GUIDE.md` và `docs/formats.md`.
 
-### Trạng thái
+### Trạng thái hiện tại
 
-- **Code:** mọi task của plan không cần GPU đã code và có test.
-  - Repo: https://github.com/AnNguyen05092004/AutoCheckout-CL (public, QĐ-7). Commit trên Mac rồi `git push`; VM chạy `git fetch` + `git reset --hard origin/main` (guide §5.1).
-  - 178 test đạt trên Mac, khoảng 2 phút (`.venv/bin/python -m pytest`); 3 test kernel chỉ chạy trên GPU.
-  - Lint: `.venv/bin/python -m ruff check autocheckout tools tests baselines`.
-- **VM (28/09):** môi trường đã cài; dữ liệu đã chuẩn bị (tập test khóa bằng md5 trong `configs/splits/`); benchmark xong (`BATCH_SIZE=4`); smoke GPU đạt → mốc G0 đạt; pilot đang chạy.
+- **Code:** xong mọi task không cần GPU; mỗi bản sửa là một commit có tiền tố mã.
+  - Sửa lỗi PDP: F1–F13.
+  - Hạ tầng chạy: R1–R4.
+  - Đánh giá: V1–V6.
+  - Cải tiến và baseline: I1–I5, B1–B3.
+  - Dữ liệu: DL1–DL6.
+  - Mọi cấu hình thí nghiệm (`configs/exp/*.sh`) và script VM.
+- **Repo:** https://github.com/AnNguyen05092004/AutoCheckout-CL (public, QĐ-7). Commit trên Mac rồi `git push`; VM chạy `git fetch -q origin && git reset -q --hard origin/main`.
+- **Test:** 181 đạt trên VM (GPU), khoảng 190 trên Mac (3 test kernel chỉ chạy trên GPU). Mac: `.venv/bin/python -m pytest`; lint: `.venv/bin/python -m ruff check autocheckout tools tests baselines`.
+- **VM `auto-cl`:** us-central1-c, L4, **on-demand**, đang bật.
+  - Môi trường: `~/venvs/pdp`, kernel CUDA đã build. Code: `~/AutoCheckout-CL`.
+  - Dữ liệu: `/data/rpc`, gồm `checkout_800/` (30.000 ảnh), `tasks/100-4x25_seed0`, `tasks/pilot_100-4x25_seed0`, `tasks/agnostic_task1`, `tasks/smoke`.
+  - Kết quả: `/data/runs`. Token Kaggle ở `~/.kaggle/access_token`; nhóm nên thu hồi token này.
+- **Tập test đã khóa:** `configs/splits/rpc_checkout_seed0.json`; md5 của `test_full.json` là `8a508281e591baebff547422be7899a3` (trong `configs/splits/manifest_100-4x25_seed0.json`).
+- **Benchmark L4:** 0,336 giây/ảnh cho task ≥ 2 với batch 4 (6,2 GB) → `BATCH_SIZE=4`; suy luận 110 ms/ảnh. Khoảng 17 giờ cho mỗi lần chạy 5 task; khoảng 165 giờ cho cả plan.
+- **Mốc G0:** đạt (smoke GPU trên ảnh thật).
+- **ĐANG CHẠY: pilot** (bắt đầu 14:28 UTC = 21:28 giờ VN), tmux `pilot`, `scripts/run_pilot.sh`: P2 → P1 → FSA_pilot → P3 → V4 (`ppg_audit` trên P2 task 2).
+  - Mất khoảng 6 giờ; **VM tự tắt khi xong, kể cả khi lỗi.**
+  - Theo dõi từ Mac: `bash scripts/vm_status.sh` (tóm tắt) hoặc `bash scripts/vm_status.sh follow` (log trực tiếp). tmux trống vì output nằm trong `/data/runs/<tên>.log`.
+  - Mỗi thí nghiệm xong ghi một dòng vào `/data/runs/pilot_chain.log`.
+  - Lúc 21:50: P2, task 1, epoch 2/4; `loss_ce` khoảng 0,89 (đầu là khoảng 1,07, sau khi sửa F13).
 
 ### Việc tiếp theo, theo thứ tự
 
-1. **Pilot đang chạy trên VM** (bắt đầu 28/09 khoảng 21:25 giờ VN), phiên tmux `pilot`, script `scripts/run_pilot.sh`: P2 → P1 → FSA_pilot → P3 → V4 trên P2 task 2.
-   - Mất khoảng 6 giờ. **VM tự tắt khi xong, kể cả khi lỗi.**
-   - Log: `/data/runs/pilot_chain.log` (mỗi thí nghiệm một dòng `exit=`), `/data/runs/<tên>.log`.
-   - Kết quả: `/data/runs/<tên>/metrics_*` và `/data/runs/P2/task_2/ppg_audit.json`.
-2. **Mốc G1 (plan §8), đánh giá trên val:**
-   - (a) P2 có tốt hơn P1 ở mAP@P của task 2 không.
-   - (b) Giây/ảnh thật; đã có 0,336 giây/ảnh cho task ≥ 2.
-   - (c) P3 so với P2 (FSA có làm giảm mAP@C của task 2 ≥ 3 điểm không).
-   - Xem thêm V4 (precision/recall của nhãn giả) và cảnh báo "classes have no prototype" trong log của P2. Smoke 1 epoch có 24/25 lớp không có prototype; nếu pilot 4 epoch vẫn thiếu nhiều thì nhánh prototype của PPG gần như không hoạt động.
-3. Nếu G1 đạt: chuyển `auto-cl` sang Spot (guide §2.5), rồi chạy FSA → E4, E0, E1, E2, E3, DET → E5, sau đó A1–A9 (guide §7).
-4. R5 (tùy chọn): tự bật lại VM khi Spot bị thu hồi.
+1. **Khi pilot xong** (VM đã tắt; `vm_status.sh` báo `TERMINATED`):
+   - bật VM (`gcloud compute instances start auto-cl --zone=us-central1-c --project=project-95a0d104-9d0f-4aa1-ba0`, có thể gặp STOCKOUT thì thử lại);
+   - đọc `pilot_chain.log`, `/data/runs/{P1,P2,P3}/metrics_cl_val.md`, `metrics_count_test.md`, `/data/runs/P2/task_2/ppg_audit.json`, và các dòng `WARNING: task ... classes have no prototype` trong `/data/runs/P2.log`.
+2. **Đánh giá mốc G1 (plan §8), chỉ dựa trên val:**
+   - (a) P2 phải tốt hơn P1 ở mAP@P của task 2; nếu không thì rà lại F2, F5, F6.
+   - (b) Tốc độ thật đã có.
+   - (c) FSA làm giảm mAP@C của task 2 ≥ 3 điểm (P3 so với P2) thì bỏ FSA hoặc giảm số epoch FSA.
+   - **Rủi ro cần xem:** smoke 1 epoch có 24/25 lớp mới không có prototype, vì F7 chỉ lấy query phân loại đúng. Nếu pilot 4 epoch vẫn thiếu nhiều thì nhánh prototype của PPG gần như không hoạt động. Hướng xử lý: nới F7 (ví dụ lấy lớp đúng trong top-k, hoặc cập nhật prototype ở 2 epoch cuối), rồi so sánh trên val.
+   - Ghi kết quả vào PROGRESS.md và plan.
+3. **Nếu G1 đạt:** chuyển `auto-cl` sang Spot (guide §2.5, VM phải tắt).
+   - Thứ tự chạy: FSA → E4 và E0, E1, E2, E3 → DET → E5 (guide §7.4) → A1–A9. A1, A4, A7, A8 dùng lại task 1 của E4.
+   - Chạy mỗi thí nghiệm bằng `bash scripts/run_exp.sh configs/exp/<tên>.sh --shutdown` trong tmux, hoặc viết chuỗi tương tự `run_pilot.sh`.
+   - Hạn credit **24/10/2026**: tải kết quả về (guide §9) và xóa VM cùng ổ trước ngày đó.
+4. Làm sau: V6 (bảng tổng hợp, `tools/summarize.py`), V5 (bảng độ trễ), R5 (tùy chọn), demo (QĐ-5).
 
 ### Lưu ý kỹ thuật
 
 - **Mac:**
-  - `.venv` dùng lại torch 2.2.2 x86_64 (Rosetta) của Python pyenv 3.10.13.
-  - Đặt `USE_TF=0` và `HF_HUB_OFFLINE=1` (`tests/conftest.py` đã đặt; script chạy tay thì tự đặt).
-  - Mac chỉ còn khoảng 7 GB trống.
-- **Test model nhỏ:**
-  - `tests/pdp_helpers.py` gồm `use_tiny_detr`, `pdp_args`, `make_trainer`, `make_batch`, `make_toy_dataset`, `run_main`.
-  - Ảnh 96 px.
-- **Style của file trong `pdp/`:**
-  - `engine.py` thụt lề bằng tab.
-  - File upstream không có newline cuối.
-  - Mỗi bản sửa là một commit có tiền tố mã (F…, R…, I…, B…, V…).
-- **Sửa file an toàn:** script Python `assert s.count(old) == 1`; tránh `cd` trong Bash; trong zsh không dùng biến tên `path`.
-- **Tham số dòng lệnh:** tên cờ trong `configs/exp/*.sh` được kiểm tra bằng `tests/test_exp_configs.py`. Thêm cờ mới vào `main.py` thì chạy lại test này.
+  - `.venv` dùng lại torch 2.2.2 x86_64 (Rosetta) của pyenv 3.10.13.
+  - Đặt `USE_TF=0` và `HF_HUB_OFFLINE=1` (conftest đã đặt; script chạy tay thì tự đặt).
+  - Mac chỉ còn khoảng 7 GB trống. zsh: dùng mảng `GC=(--zone=... --project=...)` thay cho biến chuỗi `$VM`.
+  - `gcloud` cần chạy ngoài sandbox, vì DNS của mạng trường chập chờn.
+  - Không tải dataset về Mac.
+- **Đặc điểm dữ liệu thật:**
+  - Mỗi hậu tố tên file có 9 ảnh = 3 giỏ khác mức × 3 lần chụp; không hậu tố nào có ở cả val2019 lẫn test2019.
+  - Cạnh ảnh 1751–1906 px; có 1 ảnh 1860×1859.
+  - File zip Kaggle nặng 25,3 GB. Tải bằng `curl` với token `KGAT_`, vì Kaggle CLI 1.7.4.5 cho Python 3.10 không đọc được token mới.
+- **Test model nhỏ:** `tests/pdp_helpers.py`; ảnh 96 px (ở 64 px, GroupNorm trên CPU lỗi với batch 1 ảnh).
+- **Style trong `pdp/`:** `engine.py` thụt lề bằng tab; file upstream không có newline cuối.
+- **Sửa file an toàn:** script Python `assert s.count(old) == 1`.
+- **Khi dừng một job trên VM:** dùng `pkill -9` từng tiến trình; **không** `pkill -f run_pilot.sh` từ lệnh ssh (khớp với chính shell SSH). SIGKILL để không kích hoạt trap tắt VM.
+- **Tham số dòng lệnh:** thêm cờ mới vào `main.py` thì chạy `tests/test_exp_configs.py`.
+- **Commit message:** một số commit đã đẩy lên ghi nhầm "29/09"; đúng là 28/09.
+- **Chỉ dùng một agent** (không tạo agent phụ), theo yêu cầu của nhóm.
 
 ### Câu hỏi còn mở cho nhóm
 
-- `kaggle.json` (T0.5).
 - QĐ-5: demo webcam.
-- **E5 giữa chừng:** softmax không trả lời được "chưa biết", nên SKU chưa học bị gán nhãn SKU gần nhất. Chỉ ảnh hưởng chỉ số ở các task giữa; task cuối không sao.
+- Thu hồi token Kaggle cũ.
+- **E5 giữa chừng:** softmax không trả lời được "chưa biết", nên SKU chưa học bị gán nhãn SKU gần nhất. Chỉ ảnh hưởng chỉ số ở các task giữa.
