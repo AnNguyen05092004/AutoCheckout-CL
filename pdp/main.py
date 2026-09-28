@@ -232,6 +232,9 @@ def get_args_parser():
                         help='I3: drop pseudo-labels overlapping a current-task GT box with IoU >= this (0 = off)')
     parser.add_argument('--prototype_nearest', default=0, type=int,
                         help='I4: prototype-verified candidates must have their own class as nearest prototype')
+    parser.add_argument('--freeze_shared_after_task1', default=0, type=int,
+                        help='I5: from task 2 on, also freeze input_proj, query_tf, query_position_embeddings, '
+                             'reference_points, level_embed and bbox_embed')
     parser.add_argument('--use_shared', default=1, type=int, help='B2: use the shared prompt pool')
     parser.add_argument('--use_private', default=1, type=int, help='B2: use the private (per-class) prompt pool')
     parser.add_argument('--proto_correct_only', default=1, type=int,

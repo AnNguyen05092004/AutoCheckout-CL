@@ -22,6 +22,9 @@ from models.modeling_deformable_detr import DeformableDetrForObjectDetection
 from ppg import prototype_matrix, select_candidates, select_pseudo_labels
 from inference import predict_batch
 
+# I5: name components of the parameters shared by every task (besides the frozen backbone/encoder/decoder)
+SHARED_AFTER_TASK1 = ['input_proj', 'query_tf', 'query_position_embeddings', 'reference_points', 'level_embed', 'bbox_embed']
+
 class local_trainer(pl.LightningModule):
 	def __init__(self, train_loader, val_loader, test_dataset, args, local_evaluator, task_id, eval_mode=False):
 		super().__init__()
@@ -628,6 +631,10 @@ class local_trainer(pl.LightningModule):
 		if not self.args.eval and self.args.freeze:
 			
 			freeze = self.args.freeze.split(',')
+			if self.task_id > 1 and self.args.freeze_shared_after_task1:
+				# I5: parameters shared by all tasks and trained at lr_old could drift away from what
+				# earlier tasks rely on; freeze them from task 2 on.
+				freeze += SHARED_AFTER_TASK1
 			for id, (name, params) in enumerate(self.model.named_parameters()):
 				params.requires_grad = True
 				flag = False
