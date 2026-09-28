@@ -70,7 +70,7 @@ Camera chụp các sản phẩm khách đặt trên quầy, hệ thống nhận 
 | QĐ-1 | Số slot lớp của mô hình | **Đã chốt 28/09: 224** (200 SKU RPC + 24 dự phòng cho demo); classifier 225 đầu ra | — |
 | QĐ-2 | Kịch bản "nhân viên chỉ gán nhãn SKU mới trên ảnh quầy" có phù hợp cách trình bày đề tài không | **Đã chốt 28/09: có** | — |
 | QĐ-3 | Dọn dữ liệu project cũ | **Đã xong 28/09**: ổ 200 GB đã được format; sau đó VM cũ `anmetarayban` và cả 2 ổ của nó đã bị xóa (phải tắt deletion protection trước). Còn 14 snapshot của ổ boot cũ (khoảng 30 GB, khoảng 40 nghìn VND/tháng) chờ nhóm quyết định | — |
-| QĐ-7 | Code PDP_IOD gốc không có LICENSE, có được đưa lên repo GitHub public không | **Đã chốt 28/09: chưa push**. Repo git chỉ ở local trên Mac; code lên VM bằng `git bundle` (script `scripts/sync_to_vm.sh`) | Trước khi push lên GitHub |
+| QĐ-7 | Code PDP_IOD gốc không có LICENSE, có được đưa lên repo GitHub public không | **Chốt lại 29/09: đẩy lên repo public, ghi rõ nguồn** (`pdp/UPSTREAM.md`). Nhóm đã được nhắc là code gốc không có giấy phép. VM lấy code bằng `git clone`/`git fetch` | — |
 | QĐ-4 | Ngân sách | Còn khoảng 4 triệu VND (≈ 153 USD theo tỷ giá trong bảng giá GCP), **hết hạn 24/10/2026** (mục 3.6) | — |
 | QĐ-6 | Cấu hình VM (mục 3.5) | **Đã chọn phương án B (28/09)**: VM `auto-cl`. Hiện đang chạy on-demand; nên chuyển sang Spot khi R1/R2 xong | — |
 | QĐ-5 | Demo webcam với sản phẩm Việt Nam (task 6) có nằm trong phạm vi đồ án không | Có, nếu còn thời gian | Giai đoạn 8 |
@@ -321,7 +321,7 @@ AutoCheckout-CL/
 ├── tools/               # audit_rpc, resize, make_split, make_task_config, make_task_json, predict, eval_cl, eval_count, ppg_audit, summarize
 ├── baselines/           # adapt.py (B1), retrieval (B3)
 ├── configs/             # split, task, file tham số của từng thí nghiệm
-├── scripts/             # run_exp.sh, sync_to_vm.sh, gói kết quả
+├── scripts/             # setup_vm.sh, download_rpc.sh, prepare_data.sh, run_exp.sh
 ├── tests/               # unit test (CPU) + smoke test
 ├── docs/formats.md      # định dạng file và thư mục dùng chung giữa các phần code
 ├── results/             # kết quả tải về từ VM (chỉ số, log; không có checkpoint)
@@ -357,7 +357,7 @@ Mỗi việc gồm: việc cần làm, đầu ra, và **tiêu chí nghiệm thu*
 
 | ID | Việc | Nghiệm thu |
 |---|---|---|
-| T0.1 | Khởi tạo git **local** cho thư mục này (QĐ-7: chưa push lên GitHub). Commit đầu: tài liệu. Commit thứ hai: code PDP_IOD gốc, không sửa gì (ghi rõ nguồn và commit `7702d91`). Tạo `.gitignore` cho `data/ runs/ *.pth *.ckpt kaggle.json .venv/` | Các file trong `pdp/` giống hệt blob của upstream; `git log` tách được "code gốc" và "bản sửa" |
+| T0.1 | Khởi tạo git cho thư mục này; đẩy lên `github.com/AnNguyen05092004/AutoCheckout-CL` (public, QĐ-7). Commit đầu: tài liệu. Commit thứ hai: code PDP_IOD gốc, không sửa gì (ghi rõ nguồn và commit `7702d91`). Tạo `.gitignore` cho `data/ runs/ *.pth *.ckpt kaggle.json .venv/` | Các file trong `pdp/` giống hệt blob của upstream; `git log` tách được "code gốc" và "bản sửa" |
 | T0.2 | File phiên bản thư viện (`requirements.txt` dùng chung, `requirements-dev.txt` cho test; PyTorch cài riêng theo máy); môi trường CPU `.venv` trên Mac để chạy unit test | `pytest` chạy được trên Mac |
 | T0.3 | Trên VM: tạo venv, chạy `nvidia-smi`, kiểm tra `torch.cuda` thấy L4. **Thử build kernel** bằng một script nhỏ gọi `torch.utils.cpp_extension.load` trên thư mục `transformers/kernels/deformable_detr`, độc lập với code PDP; việc nối kernel vào code PDP làm ở F11 | Import được module kernel; thời gian build được ghi lại |
 | T0.4 | Tạo `/data/rpc` và `/data/runs` trên ổ boot (lệnh ở mục 4 của hướng dẫn VM). Nếu thiếu chỗ thì tăng ổ lên 150 GB | `df -h` cho thấy đủ chỗ theo mục 3.3 |

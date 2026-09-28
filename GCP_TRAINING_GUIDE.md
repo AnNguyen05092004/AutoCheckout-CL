@@ -12,7 +12,7 @@ Thông tin dưới đây được kiểm tra bằng `gcloud` và SSH ngày 28/09
 
 | Mục | Giá trị |
 |---|---|
-| Repo | Chỉ ở local trên Mac (QĐ-7, chưa push). Code lên VM bằng `scripts/sync_to_vm.sh` (mục 5.1) |
+| Repo | https://github.com/AnNguyen05092004/AutoCheckout-CL (public, QĐ-7 chốt 29/09) |
 | Project ID | `project-95a0d104-9d0f-4aa1-ba0` |
 | Tên VM / zone | `auto-cl` / **`us-central1-c`** |
 | Loại máy | `g2-standard-4` (4 vCPU, 16 GB RAM, trong VM thấy 15 GiB) |
@@ -28,7 +28,7 @@ Quota của project chỉ cho **1 GPU chạy cùng lúc**. Muốn bật VM `anme
 Biến đường dẫn dùng trong tài liệu (nên thêm vào `~/.bashrc` trên VM):
 
 ```bash
-export PROJ=~/AutoCheckout-CL        # code (đưa lên bằng scripts/sync_to_vm.sh)
+export PROJ=~/AutoCheckout-CL        # code (git clone từ GitHub, mục 5.1)
 export DATA=/data/rpc                # dữ liệu RPC
 export RUNS=/data/runs               # kết quả train
 export VENV=~/venvs/pdp              # môi trường Python (scripts/setup_vm.sh)
@@ -45,7 +45,7 @@ export VM="auto-cl --zone=us-central1-c --project=project-95a0d104-9d0f-4aa1-ba0
 ## 1. Nguyên tắc
 
 1. **Dataset chỉ tải và xử lý trên VM**, không tải về Mac. Từ VM về Mac chỉ lấy kết quả (chỉ số, log, file dự đoán nhỏ).
-2. Không commit `kaggle.json`, dữ liệu, checkpoint (`*.pth`, `*.ckpt`) lên repo. Repo đang để public.
+2. Không commit `kaggle.json`, dữ liệu, checkpoint (`*.pth`, `*.ckpt`), file dự đoán (`*.npz`) lên repo. Repo để **public**.
 3. Không chạy `sudo do-release-upgrade`: giữ Ubuntu 22.04 để không làm hỏng driver và CUDA.
 4. Job dài luôn chạy trong `tmux`.
 5. **Không dùng thì tắt VM.** VM on-demand vẫn tính tiền khi GPU đứng yên.
@@ -150,18 +150,20 @@ Sau đó khởi động lại VM để hệ thống tự mở rộng phân vùng
 
 ## 5. Đưa code lên VM và cài môi trường
 
-### 5.1 Đưa code lên VM (chạy trên Mac)
+### 5.1 Lấy code (trên VM)
 
-Repo chỉ ở local trên Mac (QĐ-7: chưa push GitHub). Code lên VM bằng `git bundle`:
+Code viết và commit trên Mac, `git push` lên GitHub. VM chỉ lấy về:
 
 ```bash
-cd "/Users/an/Documents/Do An/AutoCheckout-CL"
-bash scripts/sync_to_vm.sh
+# lần đầu
+git clone https://github.com/AnNguyen05092004/AutoCheckout-CL.git ~/AutoCheckout-CL
+# các lần sau: đặt code trên VM đúng bằng bản trên GitHub
+cd ~/AutoCheckout-CL && git fetch -q origin && git reset -q --hard origin/main && git log --oneline -1
 ```
 
-- Chỉ gửi những gì **đã commit** trên nhánh `main`. Script cảnh báo nếu còn thay đổi chưa commit.
-- Trên VM, `~/AutoCheckout-CL` được đặt đúng bằng `main` của Mac. Nếu có sửa file của repo ngay trên VM, các sửa đổi đó sẽ bị ghi đè. Các file không thuộc repo (config dữ liệu sinh trên VM, thư mục run) được giữ lại.
-- Nhờ vậy mỗi lần chạy đều ghi được commit và diff vào `run_info.json` (R3).
+- Dùng `reset --hard` thay cho `git pull`, vì các file cấu hình dữ liệu sinh trên VM (mục 6.2) sau đó được commit từ Mac. Nếu dùng `git pull`, git sẽ từ chối ghi đè các file untracked trùng tên. `reset --hard` ghi đè đúng các file đó (nội dung giống nhau), và giữ nguyên mọi file untracked khác.
+- Không sửa code trực tiếp trên VM; mọi sửa đổi đều làm trên Mac.
+- Commit và diff của mỗi lần chạy được ghi vào `run_info.json` (R3).
 
 ### 5.2 Cài môi trường (chạy trên VM, một lần)
 
@@ -233,8 +235,8 @@ for f in configs/tasks_100-4x25_seed0.json configs/splits results/data_audit; do
   gcloud compute scp --recurse "auto-cl:AutoCheckout-CL/$f" "$(dirname "$f")/" --zone=us-central1-c --project=project-95a0d104-9d0f-4aa1-ba0
 done
 gcloud compute scp auto-cl:/data/rpc/tasks/100-4x25_seed0/manifest.json configs/splits/manifest_100-4x25_seed0.json --zone=us-central1-c --project=project-95a0d104-9d0f-4aa1-ba0
-git add configs results/data_audit && git commit -m "DL1-DL5: data audit, split and task config from the real data"
-bash scripts/sync_to_vm.sh
+git add configs results/data_audit && git commit -m "DL1-DL5: data audit, split and task config from the real data" && git push
+# rồi trên VM: git fetch + reset như mục 5.1
 ```
 
 ---
@@ -360,5 +362,5 @@ gcloud compute scp auto-cl:/data/runs/<tên>.tgz "/Users/an/Documents/Do An/Auto
 | `gcloud` trên Mac báo `NameResolutionError ... compute.googleapis.com` | DNS của mạng đang dùng (ví dụ mạng trường) chập chờn. Thử lại sau vài giây, hoặc đổi mạng hoặc DNS (ví dụ 8.8.8.8) |
 | VM tự tắt giữa chừng | Xem mục 2.4 và 2.5; làm theo mục 7.1 |
 | Không bật được VM (báo hết tài nguyên GPU) | Đợi rồi thử lại. Nếu kéo dài: tạo VM ở zone khác, vì ổ đĩa nằm cố định ở `us-central1-c` |
-| `sync_to_vm.sh` báo lỗi `reset`/`fetch` | Kiểm tra VM đang bật và SSH được (mục 2.2); chạy lại. Thư mục `~/AutoCheckout-CL` trên VM có thể xóa rồi sync lại, vì dữ liệu và kết quả nằm ở `/data` |
+| `git fetch`/`reset` trên VM báo lỗi | Thư mục `~/AutoCheckout-CL` trên VM có thể xóa rồi clone lại (mục 5.1); dữ liệu và kết quả nằm ở `/data` nên không mất |
 | `RuntimeError: Multi-scale deformable attention: PyTorch fallback` | Cấu hình đặt `--require_kernel 1` mà kernel chưa build được: xem dòng `kernel: False` ở trên |

@@ -17,7 +17,7 @@ Trạng thái: **Xong** = đạt tiêu chí nghiệm thu trong plan; **Đang là
 
 | ID | Trạng thái | Kiểm chứng / ghi chú |
 |---|---|---|
-| T0.1 | Xong (28/09) | Git local (QĐ-7). `pdp/` giống hệt blob upstream `7702d91` (so bằng `git hash-object`); bỏ `__pycache__` của upstream |
+| T0.1 | Xong (28/09; push 29/09) | GitHub public `AnNguyen05092004/AutoCheckout-CL` (QĐ-7 chốt lại 29/09). `pdp/` giống hệt blob upstream `7702d91` (so bằng `git hash-object`); bỏ `__pycache__` của upstream |
 | T0.2 | Xong (28/09) | `requirements.txt` + `requirements-dev.txt` (torch cài riêng theo máy), `pyproject.toml` (pytest, ruff). `.venv` trên Mac dùng lại torch 2.2.2 của Python gốc (x86_64 qua Rosetta; mạng tải torch quá chậm và Mac chỉ còn khoảng 7 GB trống); test đặt `USE_TF=0` vì Python gốc có TensorFlow làm crash transformers |
 | T0.3 | Chưa | Cần bật VM |
 | T0.4 | Chưa | Cần bật VM |
