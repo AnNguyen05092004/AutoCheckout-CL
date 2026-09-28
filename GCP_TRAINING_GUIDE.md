@@ -12,7 +12,7 @@ Thông tin dưới đây được kiểm tra bằng `gcloud` và SSH ngày 28/09
 
 | Mục | Giá trị |
 |---|---|
-| Repo | https://github.com/AnNguyen05092004/AutoCheckout-CL.git (public) |
+| Repo | Chỉ ở local trên Mac (QĐ-7, chưa push). Code lên VM bằng `scripts/sync_to_vm.sh` (mục 5.1) |
 | Project ID | `project-95a0d104-9d0f-4aa1-ba0` |
 | Tên VM / zone | `auto-cl` / **`us-central1-c`** |
 | Loại máy | `g2-standard-4` (4 vCPU, 16 GB RAM, trong VM thấy 15 GiB) |
@@ -28,10 +28,10 @@ Quota của project chỉ cho **1 GPU chạy cùng lúc**. Muốn bật VM `anme
 Biến đường dẫn dùng trong tài liệu (nên thêm vào `~/.bashrc` trên VM):
 
 ```bash
-export PROJ=~/AutoCheckout-CL        # code
+export PROJ=~/AutoCheckout-CL        # code (đưa lên bằng scripts/sync_to_vm.sh)
 export DATA=/data/rpc                # dữ liệu RPC
 export RUNS=/data/runs               # kết quả train
-export VENV=~/venvs/pdp              # môi trường Python
+export VENV=~/venvs/pdp              # môi trường Python (scripts/setup_vm.sh)
 ```
 
 Để gõ lệnh ngắn hơn trên Mac:
@@ -148,156 +148,203 @@ Sau đó khởi động lại VM để hệ thống tự mở rộng phân vùng
 
 ---
 
-## 5. Lấy code và cài môi trường
+## 5. Đưa code lên VM và cài môi trường
 
-### 5.1 Lấy code
+### 5.1 Đưa code lên VM (chạy trên Mac)
+
+Repo chỉ ở local trên Mac (QĐ-7: chưa push GitHub). Code lên VM bằng `git bundle`:
 
 ```bash
-cd ~
-if [ -d AutoCheckout-CL ]; then cd AutoCheckout-CL && git pull; \
-else git clone https://github.com/AnNguyen05092004/AutoCheckout-CL.git; fi
+cd "/Users/an/Documents/Do An/AutoCheckout-CL"
+bash scripts/sync_to_vm.sh
 ```
 
-### 5.2 Môi trường Python riêng
+- Chỉ gửi những gì **đã commit** trên nhánh `main`. Script cảnh báo nếu còn thay đổi chưa commit.
+- Trên VM, `~/AutoCheckout-CL` được đặt đúng bằng `main` của Mac. Nếu có sửa file của repo ngay trên VM, các sửa đổi đó sẽ bị ghi đè. Các file không thuộc repo (config dữ liệu sinh trên VM, thư mục run) được giữ lại.
+- Nhờ vậy mỗi lần chạy đều ghi được commit và diff vào `run_info.json` (R3).
 
-Image chưa có gói tạo venv (đã kiểm tra: thiếu `ensurepip`) và chưa có `unzip`, nên cài trước:
+### 5.2 Cài môi trường (chạy trên VM, một lần)
 
 ```bash
-sudo apt-get update && sudo apt-get install -y python3.10-venv unzip
+bash ~/AutoCheckout-CL/scripts/setup_vm.sh
 ```
 
-Tạo venv và cài thư viện. Dùng đúng các phiên bản code PDP cần; `torch 2.2.2 + cu121` chạy được trên L4.
+Script làm các việc sau, và chạy lại lần nữa cũng không sao:
+
+1. Tạo `/data/rpc` và `/data/runs`.
+2. Cài `python3.10-venv`, `unzip`.
+3. Tạo venv `~/venvs/pdp` với `torch 2.2.2 + cu121`, các thư viện đã khóa phiên bản trong `requirements.txt`, `kaggle`, và repo ở chế độ editable (`pip install -e .`).
+4. Build kernel CUDA cho L4 (`TORCH_CUDA_ARCH_LIST=8.9`), in thời gian build.
+5. Chạy toàn bộ test. Riêng test so sánh kernel với bản PyTorch (`tests/test_pdp_f11_kernel.py`) chỉ chạy được trên VM.
+
+Kết quả mong đợi:
+- dòng `2.2.2+cu121 True NVIDIA L4`;
+- dòng `kernel: True`;
+- test xanh hết, không còn test bị bỏ qua vì thiếu CUDA.
+
+Mỗi lần SSH lại: `source ~/venvs/pdp/bin/activate`.
+
+---
+
+## 6. Dữ liệu (chỉ trên VM)
+
+### 6.1 Kaggle API token
+
+Dataset gốc chỉ có trên Kaggle (cần tài khoản miễn phí). Bản mirror trên HuggingFace không dùng được vì thiếu tên file gốc và trường `level` (plan mục 4.1).
+
+1. Đăng nhập kaggle.com → *Settings* → mục *API* → *Create New Token*. Trình duyệt tải về file `kaggle.json`.
+2. Copy lên VM từ Mac (**không commit**):
 
 ```bash
-python3 -m venv $VENV
-source $VENV/bin/activate
-pip install --upgrade pip
-pip install torch==2.2.2 torchvision==0.17.2 --index-url https://download.pytorch.org/whl/cu121
-pip install "numpy<2" transformers==4.37.2 tokenizers==0.15.1 huggingface-hub==0.20.3 \
-  safetensors==0.4.2 timm==0.9.12 lightning==2.1.3 pytorch-lightning==2.1.3 \
-  torchmetrics==1.3.0.post0 pycocotools scipy scikit-learn matplotlib tqdm ninja kaggle pytest
-python -c "import torch; print(torch.__version__, torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+gcloud compute scp ~/Downloads/kaggle.json auto-cl:kaggle.json --zone=us-central1-c --project=project-95a0d104-9d0f-4aa1-ba0
+gcloud compute ssh $VM --command 'mkdir -p ~/.kaggle && mv ~/kaggle.json ~/.kaggle/ && chmod 600 ~/.kaggle/kaggle.json'
 ```
 
-Kết quả mong đợi: `2.2.2+cu121 True NVIDIA L4`.
-
-- Danh sách này sẽ được chuyển vào file `requirements-vm.txt` *(cần task T0.2)*.
-- Mỗi lần SSH lại: `source $VENV/bin/activate`.
-
-### 5.3 Kernel CUDA *(cần task F11)*
-
-Code gốc không bao giờ nạp được kernel và luôn chạy bản PyTorch chậm hơn. Sau khi sửa F11:
+### 6.2 Tải và chuẩn bị dữ liệu (trên VM, trong tmux)
 
 ```bash
-export CUDA_HOME=/usr/local/cuda TORCH_CUDA_ARCH_LIST=8.9
-cd $PROJ/pdp
-python -c "import models.modeling_deformable_detr as m; print('kernel:', m.MultiScaleDeformableAttention is not None)"
+source ~/venvs/pdp/bin/activate && cd ~/AutoCheckout-CL
+bash scripts/download_rpc.sh                               # T0.5: tải 15,9 GB, giải nén ảnh quầy, xóa zip
+bash scripts/prepare_data.sh 2>&1 | tee /data/rpc/prepare_data.log   # DL1 -> DL6
 ```
 
-- Lần chạy đầu sẽ biên dịch kernel, mất vài phút.
-- Phải in ra `kernel: True`.
-- Có thể có cảnh báo lệch phiên bản CUDA (toolkit 12.9 so với torch build cu121). Cảnh báo cùng major 12 thường không sao; nếu báo lỗi thì ghi lại nguyên văn.
+`prepare_data.sh` chạy lần lượt:
+1. DL1: kiểm tra dữ liệu, ghi `results/data_audit/`.
+2. DL2: thu nhỏ ảnh về 800×800 vào `/data/rpc/checkout_800`.
+3. DL3: chia tập theo nhóm ảnh, ghi `configs/splits/`.
+4. DL4: chia lớp theo task, ghi `configs/tasks_100-4x25_seed0.json`.
+5. DL5: sinh các file JSON cho từng task, kể cả file joint cho E0 và file class-agnostic cho detector của E5.
+6. DL6: sinh dữ liệu pilot.
 
-### 5.4 Test *(cần giai đoạn 2–3 của plan)*
+**Trước khi dùng kết quả chia tập:**
+
+1. Đọc `results/data_audit/audit.md`. Cần kiểm tra:
+   - có trường `level` không;
+   - có trường `area` không;
+   - ảnh có vuông không;
+   - thống kê nhóm ảnh: có nhóm nào quá lớn không, hậu tố tên file có trùng giữa `val2019` và `test2019` không.
+2. Xem 20 ảnh đã vẽ bbox trong `/data/rpc/draw_check/`.
+3. Đưa các file cấu hình sinh trên VM về Mac rồi **commit**, vì tập test phải được khóa trong repo:
 
 ```bash
-cd $PROJ && pytest -q
+# trên Mac
+cd "/Users/an/Documents/Do An/AutoCheckout-CL"
+for f in configs/tasks_100-4x25_seed0.json configs/splits results/data_audit; do
+  gcloud compute scp --recurse "auto-cl:AutoCheckout-CL/$f" "$(dirname "$f")/" --zone=us-central1-c --project=project-95a0d104-9d0f-4aa1-ba0
+done
+gcloud compute scp auto-cl:/data/rpc/tasks/100-4x25_seed0/manifest.json configs/splits/manifest_100-4x25_seed0.json --zone=us-central1-c --project=project-95a0d104-9d0f-4aa1-ba0
+git add configs results/data_audit && git commit -m "DL1-DL5: data audit, split and task config from the real data"
+bash scripts/sync_to_vm.sh
 ```
 
 ---
 
-## 6. Tải dataset RPC (chỉ trên VM)
+## 7. Chạy thí nghiệm
 
-1. Lấy API token trên kaggle.com (Settings → API → Create New Token), được file `kaggle.json`.
-2. Đưa token lên VM (**không commit**). Từ Mac:
+### 7.1 Đo tốc độ và bộ nhớ trước khi chạy dài
 
-```bash
-gcloud compute scp ~/Downloads/kaggle.json auto-cl:~/kaggle.json \
-  --zone=us-central1-c --project=project-95a0d104-9d0f-4aa1-ba0
-```
-
-3. Trên VM:
+Trên VM, lấy các tham số model của một thí nghiệm rồi chạy benchmark:
 
 ```bash
-mkdir -p ~/.kaggle && mv ~/kaggle.json ~/.kaggle/ && chmod 600 ~/.kaggle/kaggle.json
-source $VENV/bin/activate
-mkdir -p $DATA/raw && cd $DATA/raw
-kaggle datasets download -d diyer22/retail-product-checkout-dataset -p .      # 15,9 GB
-unzip -q retail-product-checkout-dataset.zip \
-  'retail_product_checkout/val2019/*' 'retail_product_checkout/test2019/*' \
-  'retail_product_checkout/instances_val2019.json' 'retail_product_checkout/instances_test2019.json'
-ls retail_product_checkout/val2019 | wc -l     # mong đợi 6000
-ls retail_product_checkout/test2019 | wc -l    # mong đợi 24000
-rm retail-product-checkout-dataset.zip         # giải phóng 15,9 GB; khi cần ảnh sản phẩm đơn thì tải lại
+source ~/venvs/pdp/bin/activate && cd ~/AutoCheckout-CL/pdp
+ARGS=$(bash -c 'REPO=~/AutoCheckout-CL; DATA=/data/rpc; RUNS=/data/runs; source ../configs/exp/E3.sh; printf "%q " "${ARGS[@]}"')
+eval python benchmark.py $ARGS --bench_mode train --batch_size 2 --bench_steps 20
+eval python benchmark.py $ARGS --bench_mode train --batch_size 4 --bench_steps 20
+eval python benchmark.py $ARGS --bench_mode infer --bench_sizes 640 800
 ```
 
-Ghi chú:
+Mỗi lệnh in ra `seconds_per_image` và `peak_gpu_memory_gb`. Chọn batch size lớn nhất chạy được mà còn dư khoảng 20% bộ nhớ, rồi sửa giá trị mặc định `BATCH_SIZE` trong `configs/exp/common.sh`. Dùng số giây/ảnh đo được để tính lại số giờ GPU (plan mục 3.4).
 
-- Giai đoạn 1 chỉ cần ảnh quầy (`val2019`, `test2019`).
-- Các bước tiếp theo (kiểm tra, thu nhỏ ảnh, chia tập): *(cần task DL1–DL6)*.
-
----
-
-## 7. Chạy train *(cần task R2)*
+### 7.2 Chạy một thí nghiệm
 
 ```bash
 tmux new -s train
-source $VENV/bin/activate && cd $PROJ
-bash scripts/run_exp.sh configs/exp/<tên_thí_nghiệm>.args --shutdown 2>&1 | tee -a $RUNS/<tên_thí_nghiệm>.log
+source ~/venvs/pdp/bin/activate && cd ~/AutoCheckout-CL
+bash scripts/run_exp.sh configs/exp/P2.sh --shutdown 2>&1 | tee -a /data/runs/P2.log
 ```
 
-- Rời tmux mà job vẫn chạy: `Ctrl+B`, rồi nhấn `D`. Quay lại: `tmux attach -t train`.
-- `--shutdown`: tắt VM khi job kết thúc, kể cả khi lỗi, để không tốn tiền lúc VM đứng yên.
-- Nên chạy smoke test (R4) và pilot trước khi chạy dài.
+- Rời tmux mà job vẫn chạy: `Ctrl+B`, rồi `D`. Quay lại: `tmux attach -t train`.
+- `--shutdown` tắt VM khi script kết thúc, **kể cả khi lỗi**.
+- Mỗi file trong `configs/exp/` là một thí nghiệm của plan mục 7. Thứ tự chạy:
+  1. Pilot: P1, P2, rồi `FSA_pilot` trước P3.
+  2. `FSA` trước E4 và các ablation A1–A9.
+  3. E4 trước A1, A4, A7, A8, vì các ablation này dùng lại task 1 của E4.
+  4. `DET` trước E5 (mục 7.4).
+- Kết quả của từng thí nghiệm nằm ở `/data/runs/<tên>/`:
+  - `metrics_cl_{val,test}.json` và `.md`;
+  - `metrics_count_test.json` và `.md`;
+  - thư mục `task_<t>/`, bố cục như `docs/formats.md` mục 6.
 
-### 7.1 Khi VM bị tắt giữa chừng
-
-VM có thể bị tắt giữa chừng do Spot bị thu hồi, lỗi, hoặc bảo trì. Khi đó:
+### 7.3 Khi VM bị tắt giữa chừng (Spot, lỗi, bảo trì)
 
 1. Bật VM lại (mục 2.1) và SSH vào.
-2. Chạy lại **đúng lệnh cũ**. Script sẽ bỏ qua các task đã xong và resume task đang dở từ checkpoint gần nhất.
+2. Chạy lại **đúng lệnh cũ**. Script tự xử lý:
+   - task đã xong thì bỏ qua;
+   - task thiếu file dự đoán thì chỉ dự đoán lại;
+   - task đang dở thì nối tiếp từ `task_<t>/last.ckpt` (lưu mỗi 30 phút và mỗi cuối epoch).
+
+### 7.4 E5 (truy xuất DINOv2)
+
+Cần chạy xong `DET` trước:
+
+```bash
+cd ~/AutoCheckout-CL
+CFG=configs/tasks_100-4x25_seed0.json; TASKS=/data/rpc/tasks/100-4x25_seed0
+python -m baselines.retrieval run --det-dir /data/runs/DET/task_1 --task-dir $TASKS --task-config $CFG \
+  --image-dir /data/rpc/checkout_800 --emb-dir /data/runs/e5_emb --out-dir /data/runs/E5 --capped
+for split in val test; do
+  python -m tools.eval_cl --run-dir /data/runs/E5 --split $split --ann $TASKS/${split}_full.json --task-config $CFG
+done
+python -m tools.eval_count --run-dir /data/runs/E5 --val-ann $TASKS/val_full.json --test-ann $TASKS/test_full.json --task-config $CFG
+```
+
+Muốn thử `--mode knn` hoặc một nhiệt độ khác: đổi `--out-dir`, dùng lại `--emb-dir` (embedding không phải tính lại), rồi so sánh trên **val**.
+
+### 7.5 Bảng tổng hợp
+
+```bash
+python -m tools.summarize --runs /data/runs/E0 /data/runs/E1 /data/runs/E2 /data/runs/E3 /data/runs/E4 /data/runs/E5 --out /data/runs/summary
+```
 
 ---
 
 ## 8. Theo dõi từ Mac (chỉ đọc, không ảnh hưởng job)
 
 ```bash
-gcloud compute ssh $VM --command "tail -F /data/runs/<tên_thí_nghiệm>.log"          # log trực tiếp
-gcloud compute ssh $VM --command "nvidia-smi"                                        # GPU có đang chạy
-gcloud compute ssh $VM --command "tmux capture-pane -pt train:0.0 -S -120"           # 120 dòng cuối của tmux
-gcloud compute ssh $VM --command "ls /data/runs/*/task_*/task_final.pth; df -h /"    # task đã xong, dung lượng
+gcloud compute ssh $VM --command "tail -n 30 /data/runs/<tên>.log"                          # log
+gcloud compute ssh $VM --command "nvidia-smi"                                               # GPU có đang chạy
+gcloud compute ssh $VM --command "tmux capture-pane -pt train:0.0 -S -120"                  # 120 dòng cuối của tmux
+gcloud compute ssh $VM --command "ls /data/runs/*/task_*/task_final.pth; df -h /"           # task đã xong, dung lượng
 ```
-
-Nhấn `Ctrl+C` chỉ dừng việc xem, không dừng job.
 
 ---
 
 ## 9. Lấy kết quả về Mac
 
-Chỉ lấy chỉ số, log và file dự đoán; không lấy dữ liệu, không lấy checkpoint.
+Chỉ lấy chỉ số, log, `run_info.json` và file dự đoán (mỗi file dự đoán khoảng vài chục MB). Không lấy dữ liệu, không lấy checkpoint.
 
 ```bash
-mkdir -p "/Users/an/Documents/Do An/AutoCheckout-CL/results"
-gcloud compute scp --recurse auto-cl:/data/runs/<tên_thí_nghiệm> \
-  "/Users/an/Documents/Do An/AutoCheckout-CL/results/" \
-  --zone=us-central1-c --project=project-95a0d104-9d0f-4aa1-ba0
+# trên VM: gói một thí nghiệm, bỏ checkpoint
+tar czf /data/runs/<tên>.tgz -C /data/runs --exclude='*.pth' --exclude='*.ckpt*' --exclude='hf_model' <tên>
+# trên Mac
+mkdir -p "/Users/an/Documents/Do An/AutoCheckout-CL/results/runs"
+gcloud compute scp auto-cl:/data/runs/<tên>.tgz "/Users/an/Documents/Do An/AutoCheckout-CL/results/runs/" --zone=us-central1-c --project=project-95a0d104-9d0f-4aa1-ba0
 ```
 
-Nếu thư mục run có checkpoint, nên nén riêng phần cần lấy trên VM trước, ví dụ `tar czf` với `--exclude='*.pth' --exclude='*.ckpt'`.
+`results/runs/` không commit file `.npz` (đã có trong `.gitignore`); các file `metrics_*` và `.md` thì commit được.
 
 ---
 
 ## 10. Checklist trước khi chạy dài
 
 ```text
-[ ] nvidia-smi thấy NVIDIA L4; torch.cuda.is_available() = True trong venv
-[ ] Kernel CUDA: in ra "kernel: True" (mục 5.3)
-[ ] pytest -q xanh
-[ ] Dữ liệu đã chia, md5 của tập test khớp với file trong repo
-[ ] Đã chạy smoke test (R4) và pilot
-[ ] df -h / còn đủ chỗ (mỗi lần chạy 5 task khoảng 2 GB)
+[ ] setup_vm.sh: "2.2.2+cu121 True NVIDIA L4", "kernel: True", pytest xanh
+[ ] Dữ liệu: audit.md đã đọc; configs/splits và configs/tasks_*.json đã commit trên Mac và sync lại
+[ ] Đã đo benchmark (mục 7.1) và đặt BATCH_SIZE trong configs/exp/common.sh
+[ ] Đã chạy pilot P1-P3 và qua mốc G1 (plan mục 8)
+[ ] df -h / còn đủ chỗ (mỗi lần chạy 5 task khoảng 2 GB, cộng 1 GB checkpoint resume của task đang chạy)
 [ ] Chạy trong tmux, có --shutdown
-[ ] (Nếu chạy dài) đã chuyển sang Spot và resume đã chạy được
+[ ] (Nếu chạy dài) đã chuyển sang Spot, sau khi thử tắt VM giữa chừng và resume thành công
 ```
 
 ---
@@ -307,10 +354,11 @@ Nếu thư mục run có checkpoint, nên nén riêng phần cần lấy trên V
 | Lỗi | Cách xử lý |
 |---|---|
 | `python3 -m venv` báo thiếu `ensurepip` | `sudo apt-get install -y python3.10-venv` |
-| `CUDA out of memory` | Giảm `batch_size` xuống 1; script tự tăng số bước tích lũy gradient để giữ batch hiệu dụng bằng 32. L4 có 23 GB, dư hơn V100 16 GB |
+| `CUDA out of memory` | Giảm `BATCH_SIZE` trong `configs/exp/common.sh` (có thể xuống 1). Số bước tích lũy gradient tự tăng để batch hiệu dụng vẫn là 32 (`--eff_batch_size`) |
 | `kernel: False` / lỗi biên dịch | Kiểm tra `ninja --version` (trong venv), `echo $CUDA_HOME`, `/usr/local/cuda/bin/nvcc --version`; đặt `TORCH_CUDA_ARCH_LIST=8.9`; xóa cache `~/.cache/torch_extensions` rồi thử lại |
 | `No space left on device` | `df -h /`, `du -sh $RUNS/*`; xóa `last.ckpt` của các task đã xong (vẫn giữ `task_final.pth`); xóa zip RPC; hoặc tăng dung lượng ổ (mục 4) |
 | `gcloud` trên Mac báo `NameResolutionError ... compute.googleapis.com` | DNS của mạng đang dùng (ví dụ mạng trường) chập chờn. Thử lại sau vài giây, hoặc đổi mạng hoặc DNS (ví dụ 8.8.8.8) |
 | VM tự tắt giữa chừng | Xem mục 2.4 và 2.5; làm theo mục 7.1 |
 | Không bật được VM (báo hết tài nguyên GPU) | Đợi rồi thử lại. Nếu kéo dài: tạo VM ở zone khác, vì ổ đĩa nằm cố định ở `us-central1-c` |
-| `git clone`/`git pull` hỏi mật khẩu | Repo public thì không cần. Nếu repo chuyển sang private: dùng GitHub Personal Access Token |
+| `sync_to_vm.sh` báo lỗi `reset`/`fetch` | Kiểm tra VM đang bật và SSH được (mục 2.2); chạy lại. Thư mục `~/AutoCheckout-CL` trên VM có thể xóa rồi sync lại, vì dữ liệu và kết quả nằm ở `/data` |
+| `RuntimeError: Multi-scale deformable attention: PyTorch fallback` | Cấu hình đặt `--require_kernel 1` mà kernel chưa build được: xem dòng `kernel: False` ở trên |
