@@ -236,6 +236,16 @@ def get_args_parser():
     parser.add_argument('--freeze_shared_after_task1', default=0, type=int,
                         help='I5: from task 2 on, also freeze input_proj, query_tf, query_position_embeddings, '
                              'reference_points, level_embed and bbox_embed')
+    parser.add_argument('--optim_groups', default='auto', choices=['auto', 'prompt', 'detr'],
+                        help="B1: 'detr' = full fine-tuning learning rates; 'auto' = original rule")
+    parser.add_argument('--joint', default=0, type=int,
+                        help='B1/E0: one training on every data class of tasks 1..n_tasks (train_joint*.json), '
+                             'written as task_<n_tasks>')
+    parser.add_argument('--save_hf', default=0, type=int,
+                        help='B1/I1: also save the final model and processor in Hugging Face format '
+                             '(task_<t>/hf_model), usable as --repo_name (FSA)')
+    parser.add_argument('--pred_ann_dir', default='', type=str,
+                        help='Folder of val_full.json/test_full.json for the predictions (default: --task_ann_dir)')
     parser.add_argument('--augment', default=0, type=int,
                         help='I2: training augmentation (90-degree rotations, colour jitter, shortest edge 640-800)')
     parser.add_argument('--augment_flip', default=0, type=int, help='I2: also random horizontal flips')
@@ -312,8 +322,9 @@ def write_task_predictions(args, trainer, task_id, processor):
     """F9/V1: predictions of the task's final model on the full val and test files (pred_<split>.npz)."""
     device = torch.device('cuda' if args.accelerator == 'gpu' else 'cpu')
     trainer.model.to(device)
+    ann_dir = args.pred_ann_dir or args.task_ann_dir
     for split in ('val', 'test'):
-        write_predictions(trainer.model, args, ann_file=os.path.join(args.task_ann_dir, f'{split}_full.json'),
+        write_predictions(trainer.model, args, ann_file=os.path.join(ann_dir, f'{split}_full.json'),
                           out_file=os.path.join(args.output_dir, f'pred_{split}.npz'), task_id=task_id,
                           seen_classes=trainer.seen_classes, split=split, processor=processor, device=device)
 
@@ -329,15 +340,16 @@ def run_task(args, task_id, output_root, processor):
     print('Logging: args ', args, file=args.log_file)
     args.task = str(task_id)
     final_path = os.path.join(args.output_dir, 'task_final.pth')
-    tr_ann = os.path.join(args.task_ann_dir, f'train_task_{task_id}{args.train_suffix}.json')
-    val_ann = os.path.join(args.task_ann_dir, f'val_task_{task_id}.json')
+    train_name = f'train_joint{args.train_suffix}.json' if args.joint else f'train_task_{task_id}{args.train_suffix}.json'
+    tr_ann = os.path.join(args.task_ann_dir, train_name)
+    val_ann = os.path.join(args.task_ann_dir, 'val_full.json' if args.joint else f'val_task_{task_id}.json')
 
     # R3: provenance of this session (code, environment, data checksums); closed at the end
     run_info = RunInfo(os.path.join(args.output_dir, 'run_info.json'))
     run_info.start(vars(args), repo_root=REPO_ROOT, files={
         'task_config': args.task_config, 'train': None if args.predict_only else tr_ann, 'val_task': val_ann,
-        'val_full': os.path.join(args.task_ann_dir, 'val_full.json'),
-        'test_full': os.path.join(args.task_ann_dir, 'test_full.json'),
+        'val_full': os.path.join(args.pred_ann_dir or args.task_ann_dir, 'val_full.json'),
+        'test_full': os.path.join(args.pred_ann_dir or args.task_ann_dir, 'test_full.json'),
         'prev_ckpt': args.prev_ckpt if task_id == args.start_task else None})
     ckpt_path = None
 
@@ -368,7 +380,7 @@ def run_task(args, task_id, output_root, processor):
     else:
         # F8: task t starts from the final weights of task t-1 (explicit --prev_ckpt, or the previous
         # task of this run); task 1 starts from --repo_name. resume() also applies --freeze.
-        if task_id > 1:
+        if task_id > 1 and not args.joint:
             prev_ckpt = args.prev_ckpt if task_id == args.start_task and args.prev_ckpt else \
                 os.path.join(task_dir(output_root, task_id-1), 'task_final.pth')
             trainer.resume(prev_ckpt)
@@ -377,7 +389,7 @@ def run_task(args, task_id, output_root, processor):
 
         # F5: teacher = frozen copy of the model after the previous task, taken before the new
         # task's prompts are initialised.
-        if task_id > 1 and args.pseudo != 'none':
+        if task_id > 1 and args.pseudo != 'none' and not args.joint:
             trainer.set_teacher()
 
         # F2: must run after set_task_id() and after the previous weights are loaded (loading would
@@ -393,6 +405,10 @@ def run_task(args, task_id, output_root, processor):
         make_pl_trainer(args).fit(trainer, train_dataloader, val_dataloader, ckpt_path=ckpt_path)
         trainer.save_task_final(final_path)
         remove_resume_checkpoints(args.output_dir)
+        if args.save_hf:
+            hf_dir = os.path.join(args.output_dir, 'hf_model')
+            trainer.model.save_pretrained(hf_dir)
+            processor.save_pretrained(hf_dir)
 
     write_task_predictions(args, trainer, task_id, processor)
     run_info.finish(mode='predict' if args.predict_only else 'train', resumed_from=ckpt_path)
@@ -410,6 +426,12 @@ def main(args):
         processor = DeformableDetrImageProcessor.from_pretrained(args.repo_name)
     else:
         processor = DeformableDetrImageProcessor()
+
+    if args.joint:
+        # B1/E0: task n_tasks covers every data class of tasks 1..n_tasks (PREV = 0), trained at once
+        names = [name for t in range(1, args.n_tasks + 1) for name in args.task_map[t][0]]
+        args.task_map[args.n_tasks] = (names, 0, len(names))
+        args.start_task = args.n_tasks
 
     output_root = args.output_dir
     for task_id in range(args.start_task, args.n_tasks+1):

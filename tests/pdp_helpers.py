@@ -83,7 +83,8 @@ def make_trainer(args: argparse.Namespace, task_id: int):
 
     trainer = engine.local_trainer(train_loader=None, val_loader=None, test_dataset=None, args=args,
                                    local_evaluator=SimpleNamespace(), task_id=task_id)
-    trainer.model.model.prompts.set_task_id(task_id - 1)
+    if args.use_prompts:
+        trainer.model.model.prompts.set_task_id(task_id - 1)
     trainer.resume()  # only applies --freeze when no path is given
     return trainer
 
@@ -163,6 +164,7 @@ def make_toy_dataset(root: Path, sizes=(3, 2), n_train=8, n_val=4, n_test=4, see
             (task_dir / f"{split}_task_{task_id}.json").write_text(json.dumps(restrict(splits[split], labels)))
     for split in ("val", "test"):
         (task_dir / f"{split}_full.json").write_text(json.dumps(restrict(splits[split], set(range(num_labels)))))
+    (task_dir / "train_joint.json").write_text(json.dumps(restrict(splits["train"], set(range(num_labels)))))
     return {"images": image_dir, "tasks": task_dir}
 
 

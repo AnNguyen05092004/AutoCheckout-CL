@@ -4,7 +4,8 @@
 #   bash scripts/run_exp.sh configs/exp/<name>.sh [--shutdown]
 #
 # The config file is sourced; it sets EXP (run name), N_TASKS, ARGS (arguments of pdp/main.py) and
-# optionally REUSE_TASK1 (name of a run whose task_1 is reused, for ablations that only change tasks >= 2).
+# optionally REUSE_TASK1 (name of a run whose task_1 is reused, for ablations that only change tasks >= 2)
+# and START_TASK (first task to run; E0 trains a single joint task N_TASKS).
 # Re-running the same command after an interruption continues where it stopped:
 #   - a task with task_final.pth and both prediction files is skipped;
 #   - a task with task_final.pth but a missing prediction file only gets its predictions rewritten;
@@ -36,7 +37,7 @@ if [[ -n ${REUSE_TASK1:-} && ! -e $RUN_DIR/task_1 ]]; then
     echo "task 1 reused from $REUSE_TASK1"
 fi
 
-for t in $(seq 1 "$N_TASKS"); do
+for t in $(seq "${START_TASK:-1}" "$N_TASKS"); do
     task_dir=$RUN_DIR/task_$t
     mode=()
     if [[ -f $task_dir/task_final.pth ]]; then

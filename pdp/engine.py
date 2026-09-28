@@ -459,7 +459,7 @@ class local_trainer(pl.LightningModule):
 			loss_dict['loss_ddl'] = ddl_loss
 			loss = loss + self.args.ddl_lambda * ddl_loss
 
-		if self.args.local_query:
+		if self.args.use_prompts and self.args.local_query:  # the query loss exists only with prompts
 			loss_dict['query_loss'] = query_loss
 
 			loss += self.args.lambda_query * query_loss
@@ -679,7 +679,11 @@ class local_trainer(pl.LightningModule):
 	def configure_optimizers(self):
 		new_params = self.args.new_params.split(',')
 
-		if self.args.repo_name:
+		# B1: 'prompt' groups = new params at lr, the rest at lr_old (PDP); 'detr' groups = Deformable DETR
+		# fine-tuning (lr, backbone lr_backbone, sampling_offsets/reference_points lr x0.1). 'auto' keeps the
+		# original rule: prompt groups when a pretrained model is loaded.
+		groups = self.args.optim_groups if self.args.optim_groups != 'auto' else ('prompt' if self.args.repo_name else 'detr')
+		if groups == 'prompt':
 			param_dicts = [
 				{"params": [p for n, p in self.named_parameters()
 					if self.match_name_keywords(n, new_params) and p.requires_grad],
