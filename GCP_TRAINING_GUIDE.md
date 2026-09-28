@@ -313,6 +313,14 @@ python -m tools.summarize --runs /data/runs/E0 /data/runs/E1 /data/runs/E2 /data
 
 ## 8. Theo dõi từ Mac (chỉ đọc, không ảnh hưởng job)
 
+Tóm tắt nhanh bằng một lệnh: trạng thái VM, thí nghiệm nào đã xong, tiến độ hiện tại, GPU, dung lượng ổ.
+
+```bash
+bash scripts/vm_status.sh
+```
+
+Các lệnh riêng lẻ:
+
 ```bash
 gcloud compute ssh auto-cl "${GC[@]}" --command "tail -n 30 /data/runs/<tên>.log"                          # log
 gcloud compute ssh auto-cl "${GC[@]}" --command "nvidia-smi"                                               # GPU có đang chạy
