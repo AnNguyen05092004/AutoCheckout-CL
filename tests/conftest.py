@@ -1,5 +1,11 @@
+import os
 import sys
 from pathlib import Path
+
+# The Mac test venv reuses the base interpreter's torch (--system-site-packages), and that interpreter
+# also has TensorFlow, which transformers would import and which aborts the process. Must be set
+# before transformers is imported. Harmless on the VM, where TensorFlow is not installed.
+os.environ.setdefault("USE_TF", "0")
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PDP_DIR = REPO_ROOT / "pdp"
