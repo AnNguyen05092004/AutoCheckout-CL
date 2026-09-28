@@ -3,8 +3,9 @@
 TASK_CFG=$REPO/configs/tasks_100-4x25_seed0.json
 TASK_DIR=$DATA/tasks/100-4x25_seed0
 
-# Model and optimisation as in the PDP code / paper; BATCH_SIZE is set after the pilot memory test.
-BATCH_SIZE=${BATCH_SIZE:-2}
+# Model and optimisation as in the PDP code / paper. BATCH_SIZE 4: benchmark on the L4 (28/09), 0.336 s/image and
+# 6.2 GB peak for a task >= 2 step (batch 2: 0.374 s/image, 4.5 GB).
+BATCH_SIZE=${BATCH_SIZE:-4}
 COMMON_ARGS=(
     --task_config "$TASK_CFG" --n_classes 225
     --task_ann_dir "$TASK_DIR" --train_img_dir "$DATA/checkout_800" --test_img_dir "$DATA/checkout_800"

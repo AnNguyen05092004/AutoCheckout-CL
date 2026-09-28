@@ -12,7 +12,7 @@ Thông tin dưới đây được kiểm tra bằng `gcloud` và SSH ngày 28/09
 
 | Mục | Giá trị |
 |---|---|
-| Repo | https://github.com/AnNguyen05092004/AutoCheckout-CL (public, QĐ-7 chốt 29/09) |
+| Repo | https://github.com/AnNguyen05092004/AutoCheckout-CL (public, QĐ-7 chốt 28/09) |
 | Project ID | `project-95a0d104-9d0f-4aa1-ba0` |
 | Tên VM / zone | `auto-cl` / **`us-central1-c`** |
 | Loại máy | `g2-standard-4` (4 vCPU, 16 GB RAM, trong VM thấy 15 GiB) |
@@ -362,6 +362,6 @@ gcloud compute scp auto-cl:/data/runs/<tên>.tgz "/Users/an/Documents/Do An/Auto
 | `No space left on device` | `df -h /`, `du -sh $RUNS/*`; xóa `last.ckpt` của các task đã xong (vẫn giữ `task_final.pth`); xóa zip RPC; hoặc tăng dung lượng ổ (mục 4) |
 | `gcloud` trên Mac báo `NameResolutionError ... compute.googleapis.com` | DNS của mạng đang dùng (ví dụ mạng trường) chập chờn. Thử lại sau vài giây, hoặc đổi mạng hoặc DNS (ví dụ 8.8.8.8) |
 | VM tự tắt giữa chừng | Xem mục 2.4 và 2.5; làm theo mục 7.1 |
-| Không bật được VM, báo `STOCKOUT` (zone tạm hết GPU L4, kể cả on-demand) | Đợi vài phút rồi thử lại. Ngày 29/09 gặp lỗi này một lần, lần thử thứ hai bật được. Nếu kéo dài: tạo snapshot ổ rồi tạo VM ở zone khác có L4 (ổ đĩa nằm cố định ở `us-central1-c`) |
+| Không bật được VM, báo `STOCKOUT` (zone tạm hết GPU L4, kể cả on-demand) | Đợi vài phút rồi thử lại. Ngày 28/09 gặp lỗi này một lần, lần thử thứ hai bật được. Nếu kéo dài: tạo snapshot ổ rồi tạo VM ở zone khác có L4 (ổ đĩa nằm cố định ở `us-central1-c`) |
 | `git fetch`/`reset` trên VM báo lỗi | Thư mục `~/AutoCheckout-CL` trên VM có thể xóa rồi clone lại (mục 5.1); dữ liệu và kết quả nằm ở `/data` nên không mất |
 | `RuntimeError: Multi-scale deformable attention: PyTorch fallback` | Cấu hình đặt `--require_kernel 1` mà kernel chưa build được: xem dòng `kernel: False` ở trên |

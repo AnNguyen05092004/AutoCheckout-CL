@@ -8,7 +8,7 @@ Trạng thái: **Xong** = đạt tiêu chí nghiệm thu trong plan; **Đang là
 
 | Việc | Ai | Ghi chú |
 |---|---|---|
-| Tạo tài khoản Kaggle (miễn phí) và API token (`kaggle.json`), cho biết đường dẫn trên Mac | Nhóm | Cần cho T0.5. Mirror HuggingFace không dùng được vì thiếu tên file và `level` (plan mục 4.1). File chỉ copy thẳng lên VM, không commit |
+| Thu hồi và tạo lại Kaggle API token (Settings → API) | Nhóm | Token đã xuất hiện trong đoạn chat; dữ liệu đã tải xong nên thu hồi không ảnh hưởng gì |
 | QĐ-5: demo webcam có nằm trong phạm vi không | Nhóm | Cần trước giai đoạn demo |
 
 ## Bảng trạng thái
@@ -17,22 +17,22 @@ Trạng thái: **Xong** = đạt tiêu chí nghiệm thu trong plan; **Đang là
 
 | ID | Trạng thái | Kiểm chứng / ghi chú |
 |---|---|---|
-| T0.1 | Xong (28/09; push 29/09) | GitHub public `AnNguyen05092004/AutoCheckout-CL` (QĐ-7 chốt lại 29/09). `pdp/` giống hệt blob upstream `7702d91` (so bằng `git hash-object`); bỏ `__pycache__` của upstream |
+| T0.1 | Xong (28/09; push 28/09) | GitHub public `AnNguyen05092004/AutoCheckout-CL` (QĐ-7 chốt lại 28/09). `pdp/` giống hệt blob upstream `7702d91` (so bằng `git hash-object`); bỏ `__pycache__` của upstream |
 | T0.2 | Xong (28/09) | `requirements.txt` + `requirements-dev.txt` (torch cài riêng theo máy), `pyproject.toml` (pytest, ruff). `.venv` trên Mac dùng lại torch 2.2.2 của Python gốc (x86_64 qua Rosetta; mạng tải torch quá chậm và Mac chỉ còn khoảng 7 GB trống); test đặt `USE_TF=0` vì Python gốc có TensorFlow làm crash transformers |
-| T0.3 | Chưa | Cần bật VM |
-| T0.4 | Chưa | Cần bật VM |
-| T0.5 | Chờ | Chờ `kaggle.json` |
+| T0.3 | Xong (28/09) | `setup_vm.sh`: torch 2.2.2+cu121 trên L4; kernel CUDA build 147 s, nhanh hơn bản PyTorch khoảng 20 lần. Image thiếu `g++` và `python3.10-dev`, script đã cài thêm. 181/181 test đạt trên VM |
+| T0.4 | Xong (28/09) | `/data/rpc`, `/data/runs`; sau khi chuẩn bị dữ liệu còn trống khoảng 60 GB |
+| T0.5 | Xong (28/09) | Token Kaggle kiểu mới (`KGAT_`, Kaggle CLI cho Python 3.10 không đọc được) → tải bằng `curl`; zip 25,3 GB trong khoảng 4 phút; 6.000 + 24.000 ảnh; đã xóa zip |
 
 ### Giai đoạn 1: dữ liệu
 
 | ID | Trạng thái | Kiểm chứng / ghi chú |
 |---|---|---|
-| DL1 | Code xong (28/09) | `tools/audit_rpc.py`, `autocheckout/groups.py`; test trên dữ liệu giả. Chưa chạy trên dữ liệu thật (cần T0.5) |
-| DL2 | Code xong (28/09) | `tools/resize.py`; test co bbox/area, số vật không đổi, chạy lại không đổi byte |
-| DL3 | Code xong (28/09) | `tools/make_split.py`; test không rò rỉ nhóm, chỉ nhóm thuần test2019 vào val/test, thử seed khi thiếu vật/SKU, tái lập md5 |
-| DL4 | Code xong (28/09) | `tools/make_task_config.py`; phân bổ theo nhóm hàng bằng largest remainder, kích thước task chính xác |
-| DL5 | Code xong (28/09) | `tools/make_task_json.py`; nhiều nguồn train, file `_capped`, `_gt_full`, manifest; file đọc được bằng `CocoDetection` của PDP |
-| DL6 | Code xong (28/09) | Cùng công cụ DL5 với `--tasks 1,2` trên `train_pilot`; `scripts/prepare_data.sh` chạy DL1→DL6 |
+| DL1 | Xong (28/09) | `results/data_audit/audit.md`. Cạnh ảnh 1751–1906 px (1 ảnh 1860×1859); mỗi hậu tố = 3 giỏ khác mức × 3 lần chụp; không hậu tố nào có ở cả val2019 lẫn test2019; không có ảnh trùng |
+| DL2 | Xong (28/09) | 30.000 ảnh 800×800, số vật 367.935 trước = sau; ảnh gần vuông được co theo từng trục (sửa sau DL1) |
+| DL3 | Xong (28/09) | `--stratify none` (nhóm trộn mức, sửa sau DL1). Seed 0 đạt ngay: test 6.003 (2.008/1.969/2.026), val 1.503, train 22.494, pilot 3.002. Khóa bằng md5 trong `configs/splits/` |
+| DL4 | Xong (28/09) | `configs/tasks_100-4x25_seed0.json`: 100 + 4×25 phân bổ theo 17 nhóm hàng, 24 slot dự phòng |
+| DL5 | Xong (28/09) | Task 1: 21.752 ảnh (capped 6.000); task 2–5: khoảng 12.000 ảnh mỗi task (capped 6.000); joint, class-agnostic; md5 `test_full.json` = `8a508281…` |
+| DL6 | Xong (28/09) | Pilot task 1: 2.910 ảnh, task 2: 1.692 ảnh |
 
 ### Giai đoạn 2: sửa code PDP
 
@@ -48,26 +48,26 @@ Trạng thái: **Xong** = đạt tiêu chí nghiệm thu trong plan; **Đang là
 | F8 | Xong (28/09) | `run_task()`; `task_<t>/task_final.pth` (ghi nguyên tử); `--prev_ckpt`, `--train_suffix`, `--accelerator`; bỏ checkpoint mỗi epoch. Test chạy `main()` đầu-cuối trên CPU `tests/test_pdp_f8_paths.py` |
 | F9 | Xong (28/09) | `pdp/inference.py`; validation 2 lượt không teacher; sau mỗi task ghi `pred_{val,test}.npz`. Test: khớp hậu xử lý gốc, validation không gọi teacher. `tests/test_pdp_f9_inference.py` |
 | F10 | Xong (28/09) | Bảng tham số train theo nhóm/lr trong log; model thật 69,12M / 35,00M đúng như plan. `tests/test_pdp_f10_parameters.py` |
-| F11 | Code xong (28/09) | Đường dẫn kernel trong gói transformers (đã xác nhận có mã nguồn), log khi rơi về PyTorch, `--require_kernel`. Test so kernel với PyTorch chỉ chạy trên VM |
+| F11 | Xong (28/09) | Kernel nạp được trên L4, khớp bản PyTorch (forward ≤ 1e-4, gradient), 0,07–0,10 ms so với 1,7–1,9 ms |
 | F12 | Xong (28/09) | `shuffle=True`; thứ tự khác giữa 2 epoch, tái lập theo seed; `tests/test_pdp_f12_shuffle.py` |
 
 ### Giai đoạn 3–6: hạ tầng chạy, đánh giá, cải tiến, baseline
 
 | ID | Trạng thái | Kiểm chứng / ghi chú |
 |---|---|---|
-| R1 | Xong (29/09) | `pdp/checkpointing.py`, scheduler qua Lightning, bộ nhớ prototype trong checkpoint; test ngắt giữa epoch cuối rồi resume: epoch, bước, scheduler, prototype khớp, tổng số bước không đổi |
-| R2 | Xong (29/09) | `scripts/run_exp.sh` + `configs/exp/*.sh` (mọi thí nghiệm); test bằng interpreter giả: bỏ qua task xong, chỉ dự đoán lại, dùng lại task 1, tắt VM cả khi lỗi |
-| R3 | Xong (29/09) | `autocheckout/runinfo.py` → `task_<t>/run_info.json` theo session |
-| R4 | CPU xong, GPU chờ VM | Smoke CPU: `tests/test_pdp_f8_paths.py`, `test_pdp_f9_inference.py`; GPU: `pdp/benchmark.py` + `setup_vm.sh` |
+| R1 | Xong (28/09) | `pdp/checkpointing.py`, scheduler qua Lightning, bộ nhớ prototype trong checkpoint; test ngắt giữa epoch cuối rồi resume: epoch, bước, scheduler, prototype khớp, tổng số bước không đổi |
+| R2 | Xong (28/09) | `scripts/run_exp.sh` + `configs/exp/*.sh` (mọi thí nghiệm); test bằng interpreter giả: bỏ qua task xong, chỉ dự đoán lại, dùng lại task 1, tắt VM cả khi lỗi |
+| R3 | Xong (28/09) | `autocheckout/runinfo.py` → `task_<t>/run_info.json` theo session |
+| R4 | CPU xong; benchmark GPU xong (28/09) | Benchmark L4: 0,336 giây/ảnh (batch 4, 6,2 GB), suy luận 110 ms/ảnh → `BATCH_SIZE=4`. Còn smoke GPU trên ảnh thật |
 | R5 | Chưa | Tùy chọn; làm khi chuyển Spot nếu cần |
 | V1 | Xong (28/09) | Lõi trong `pdp/inference.py`; CLI là `main.py --predict_only 1` (thay cho `tools/predict.py` trong plan) |
 | V2 | Code xong (28/09) | `autocheckout/cl_metrics.py`, `tools/eval_cl.py`; M1 khớp COCOeval chạy trên file GT theo nhóm (cách của code gốc) |
 | V3 | Code xong (28/09) | `autocheckout/counting.py`, `tools/eval_count.py`; khớp công thức rpctool; lớp không có GT bị loại khỏi trung bình mCCD/mCIoU (ghi rõ trong file kết quả) |
-| V4 | Code xong (29/09) | `pdp/ppg_audit.py`; chạy sau pilot |
-| V5 | Code xong (29/09) | `pdp/benchmark.py` (độ trễ, bộ nhớ, dung lượng/lớp) |
+| V4 | Code xong (28/09) | `pdp/ppg_audit.py`; chạy sau pilot |
+| V5 | Code xong (28/09) | `pdp/benchmark.py` (độ trễ, bộ nhớ, dung lượng/lớp) |
 | V6 | Code xong (28/09) | `tools/summarize.py`: bảng md/csv + biểu đồ |
-| I1–I5 | Xong (29/09) | I1 = FSA qua `--save_hf` + `--repo_name`; I2 `pdp/augment.py`; I3/I4 trong `ppg.py`; I5 `--freeze_shared_after_task1`; mỗi mục có test |
-| B1–B3 | Xong (29/09) | B1 = cờ của `main.py` (joint, save_hf, optim_groups, pred_ann_dir) + DL5 `--joint`/`--agnostic-out`; B2 `--use_shared/--use_private`; B3 `baselines/retrieval.py` |
+| I1–I5 | Xong (28/09) | I1 = FSA qua `--save_hf` + `--repo_name`; I2 `pdp/augment.py`; I3/I4 trong `ppg.py`; I5 `--freeze_shared_after_task1`; mỗi mục có test |
+| B1–B3 | Xong (28/09) | B1 = cờ của `main.py` (joint, save_hf, optim_groups, pred_ann_dir) + DL5 `--joint`/`--agnostic-out`; B2 `--use_shared/--use_private`; B3 `baselines/retrieval.py` |
 
 ### Mốc và thí nghiệm
 
@@ -94,10 +94,18 @@ Trạng thái: **Xong** = đạt tiêu chí nghiệm thu trong plan; **Đang là
 
 ## Nhật ký tiếp
 
-- **29/09/2026**: nhóm chốt E5 = phương án b; giữ 14 snapshot ổ cũ; đẩy repo lên GitHub (public). Xong R1, R2, R3, I1–I5, B1, B2, V4, V5 (code), cấu hình mọi thí nghiệm, script VM, viết lại guide; V2 nhanh hơn khoảng 5 lần (chính xác tuyệt đối). 178 test đạt.
-- 29/09: nhóm chốt E5 = phương án b; giữ 14 snapshot ổ cũ. Kiểm tra nguồn dữ liệu: mirror HuggingFace thiếu tên file và `level`, nên vẫn cần Kaggle. Ảnh quầy RPC không cố định 1800 px (khoảng 1750–1890, vuông); DL2 đã xử lý theo từng ảnh.
+- **28/09/2026 (trên VM):**
+  - Lần bật VM đầu bị STOCKOUT, lần thứ hai bật được.
+  - Cài môi trường; sửa 3 lỗi chỉ lộ ra trên VM: thiếu `g++`, thiếu `python3.10-dev`, test E5 để model khác thiết bị với ảnh.
+  - Tải dữ liệu bằng token Kaggle.
+  - DL1 cho thấy cấu trúc nhóm khác giả thuyết → sửa DL2, DL3.
+  - Chuẩn bị dữ liệu xong; tập test đã khóa.
+  - Benchmark: 0,336 giây/ảnh (batch 4) → khoảng 17 giờ L4 cho mỗi lần chạy 5 task ở cấu hình chuẩn.
+  - Ghi chú: vài commit message đã đẩy lên ghi nhầm "29/09"; đúng là 28/09 (tài liệu đã sửa).
+- **28/09/2026**: nhóm chốt E5 = phương án b; giữ 14 snapshot ổ cũ; đẩy repo lên GitHub (public). Xong R1, R2, R3, I1–I5, B1, B2, V4, V5 (code), cấu hình mọi thí nghiệm, script VM, viết lại guide; V2 nhanh hơn khoảng 5 lần (chính xác tuyệt đối). 178 test đạt.
+- 28/09: nhóm chốt E5 = phương án b; giữ 14 snapshot ổ cũ. Kiểm tra nguồn dữ liệu: mirror HuggingFace thiếu tên file và `level`, nên vẫn cần Kaggle. Ảnh quầy RPC không cố định 1800 px (khoảng 1750–1890, vuông); DL2 đã xử lý theo từng ảnh.
 
-## Handoff (cập nhật 29/09/2026)
+## Handoff (cập nhật 28/09/2026)
 
 Mọi thông tin cần để làm tiếp nằm trong file này, `IMPLEMENTATION_PLAN.md` (phụ lục B, C) và `docs/formats.md`.
 

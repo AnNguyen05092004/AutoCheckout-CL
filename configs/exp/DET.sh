@@ -1,5 +1,5 @@
 # DET (B1c): class-agnostic detector for E5, trained on the task-1 images with every box (option b,
-# decided 29/09); predictions on the shared val/test files, read by baselines/retrieval.py.
+# decided 28/09); predictions on the shared val/test files, read by baselines/retrieval.py.
 source "$REPO/configs/exp/common.sh"
 EXP=DET
 SKIP_EVAL=1

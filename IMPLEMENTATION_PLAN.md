@@ -70,7 +70,7 @@ Camera chụp các sản phẩm khách đặt trên quầy, hệ thống nhận 
 | QĐ-1 | Số slot lớp của mô hình | **Đã chốt 28/09: 224** (200 SKU RPC + 24 dự phòng cho demo); classifier 225 đầu ra | — |
 | QĐ-2 | Kịch bản "nhân viên chỉ gán nhãn SKU mới trên ảnh quầy" có phù hợp cách trình bày đề tài không | **Đã chốt 28/09: có** | — |
 | QĐ-3 | Dọn dữ liệu project cũ | **Đã xong 28/09**: ổ 200 GB đã được format; sau đó VM cũ `anmetarayban` và cả 2 ổ của nó đã bị xóa (phải tắt deletion protection trước). Còn 14 snapshot của ổ boot cũ (khoảng 30 GB, khoảng 40 nghìn VND/tháng) chờ nhóm quyết định | — |
-| QĐ-7 | Code PDP_IOD gốc không có LICENSE, có được đưa lên repo GitHub public không | **Chốt lại 29/09: đẩy lên repo public, ghi rõ nguồn** (`pdp/UPSTREAM.md`). Nhóm đã được nhắc là code gốc không có giấy phép. VM lấy code bằng `git clone`/`git fetch` | — |
+| QĐ-7 | Code PDP_IOD gốc không có LICENSE, có được đưa lên repo GitHub public không | **Chốt lại 28/09: đẩy lên repo public, ghi rõ nguồn** (`pdp/UPSTREAM.md`). Nhóm đã được nhắc là code gốc không có giấy phép. VM lấy code bằng `git clone`/`git fetch` | — |
 | QĐ-4 | Ngân sách | Còn khoảng 4 triệu VND (≈ 153 USD theo tỷ giá trong bảng giá GCP), **hết hạn 24/10/2026** (mục 3.6) | — |
 | QĐ-6 | Cấu hình VM (mục 3.5) | **Đã chọn phương án B (28/09)**: VM `auto-cl`. Hiện đang chạy on-demand; nên chuyển sang Spot khi R1/R2 xong | — |
 | QĐ-5 | Demo webcam với sản phẩm Việt Nam (task 6) có nằm trong phạm vi đồ án không | Có, nếu còn thời gian | Giai đoạn 8 |
@@ -103,7 +103,7 @@ Camera chụp các sản phẩm khách đặt trên quầy, hệ thống nhận 
 
 | Hạng mục | Dung lượng |
 |---|---|
-| File zip RPC tải từ Kaggle | 25,3 GB theo lần tải thật ngày 29/09 (lúc lập plan, API báo 15,9 GB). Đã xóa sau khi giải nén; khi cần ảnh sản phẩm đơn thì tải lại (khoảng 4 phút trên VM) |
+| File zip RPC tải từ Kaggle | 25,3 GB theo lần tải thật ngày 28/09 (lúc lập plan, API báo 15,9 GB). Đã xóa sau khi giải nén; khi cần ảnh sản phẩm đơn thì tải lại (khoảng 4 phút trên VM) |
 | Ảnh quầy gốc, vuông, cạnh khoảng 1750–1890 px (`val2019` + `test2019`) | Khoảng 6 GB (trung bình khoảng 200 KB/ảnh, đo trên 14.194 tên file) |
 | Ảnh quầy đã thu nhỏ về 800×800 | Khoảng 2 GB (ước tính) |
 | Mỗi lần chạy 5 task | Khoảng 2 GB: trọng số cuối mỗi task khoảng 0,28 GB × 5, cộng file dự đoán, cộng một checkpoint resume tạm 0,52 GB |
@@ -140,6 +140,16 @@ Tất cả giả định kernel chạy được. Nếu rơi về bản PyTorch t
 | Ablation A1–A9 (3 task, dùng lại task 1 khi có thể) | Khoảng 55 |
 | **Tổng tối thiểu** | **Khoảng 135** |
 | Tùy chọn: E4 cấu hình đầy đủ; thêm 2 seed cho E3/E4 | Khoảng +55; khoảng +60 |
+
+**Số đo thật trên L4 (28/09/2026, `pdp/benchmark.py`, ảnh 800×800, có kernel CUDA):**
+
+| Đo | Kết quả |
+|---|---|
+| Bước train PDP của task ≥ 2 (teacher 2 lượt + PPG + student 2 lượt + backward), batch 4 | **0,336 giây/ảnh**, bộ nhớ GPU cao nhất 6,2 GB (batch 2: 0,374 giây/ảnh, 4,5 GB) |
+| Suy luận 2 lượt, batch 1 | 110 ms/ảnh ở 800 px; 87 ms/ảnh ở 640 px |
+| Kernel deformable attention so với bản PyTorch | 0,07–0,10 ms so với 1,7–1,9 ms mỗi lượt forward |
+
+Tính lại theo số đo: task 1 chưa đo, tạm ước khoảng 0,22 giây/ảnh vì không có teacher. Một lần chạy 5 task ở cấu hình chuẩn mất khoảng **17 giờ L4**: task 1 khoảng 2,2 giờ, task 2–5 khoảng 13,4 giờ, dự đoán khoảng 1,2 giờ. Cả plan tối thiểu (pilot, E0, FSA, DET, E1–E5, A1–A9) khoảng **165 giờ L4, tức khoảng 7 ngày chạy liên tục**; nếu chạy Spot thì tốn khoảng 1,9 triệu VND.
 
 Một GPU chạy liên tục 24/7 được tối đa 168 giờ/tuần. Tính cả thời gian bị Spot thu hồi và thời gian sửa lỗi, thực tế nên dự trù 2–3 tuần chạy GPU. Chi phí quy ra tiền cho từng cấu hình: xem mục 3.5.
 
@@ -234,9 +244,9 @@ Nếu bị trễ, cắt theo thứ tự: A5–A9, rồi E2, rồi dùng ablation
 
 ### 4.1 Nguồn
 
-- Kaggle `diyer22/retail-product-checkout-dataset`, phiên bản 5, file zip 25,3 GB (tải thật 29/09), giấy phép **CC BY-NC-SA 4.0** (chỉ dùng phi thương mại, không đưa dữ liệu lên repo).
+- Kaggle `diyer22/retail-product-checkout-dataset`, phiên bản 5, file zip 25,3 GB (tải thật 28/09), giấy phép **CC BY-NC-SA 4.0** (chỉ dùng phi thương mại, không đưa dữ liệu lên repo).
 - Dữ liệu gồm 200 SKU thuộc 17 nhóm hàng.
-- Ảnh quầy vuông, cạnh không cố định: lấy mẫu 1.300 ảnh (qua bản mirror trên HuggingFace, 29/09) thấy cạnh từ khoảng 1750 đến 1890 px, không phải đúng 1800. DL2 co từng ảnh theo cạnh riêng của nó. Có 3 mức độ đông:
+- Ảnh quầy vuông, cạnh không cố định: lấy mẫu 1.300 ảnh (qua bản mirror trên HuggingFace, 28/09) thấy cạnh từ khoảng 1750 đến 1890 px, không phải đúng 1800. DL2 co từng ảnh theo cạnh riêng của nó. Có 3 mức độ đông:
 
   | Mức | Số SKU/ảnh | Số vật/ảnh |
   |---|---|---|
@@ -247,7 +257,7 @@ Nếu bị trễ, cắt theo thứ tự: A5–A9, rồi E2, rồi dùng ablation
 - `val2019` có 6.000 ảnh (2.000 mỗi mức); `test2019` có 24.000 ảnh (8.000 mỗi mức). Trung bình 12,26 vật/ảnh.
 - Annotation theo định dạng COCO, `category_id` từ 1 đến 200. `rpctool` đọc trường `level` của ảnh, nên có thể trường này tồn tại; DL1 sẽ kiểm tra.
 - Cần tài khoản Kaggle (API token) để tải. **Không commit file `kaggle.json`.**
-- Đã kiểm tra các nguồn khác (29/09):
+- Đã kiểm tra các nguồn khác (28/09):
   - Bản mirror trên HuggingFace (`benjamintli/retail-product-checkout`, giống hệt `SAxSHADOW/retail-product-checkout`) tải được không cần đăng nhập, nhưng **chỉ có ảnh, bbox và nhãn**: không có tên file gốc, không có `level`, không có id ảnh.
   - Thiếu tên file thì không chia tập theo nhóm ảnh chụp liên tiếp được (mục 4.2); thiếu `level` thì không phân tầng theo mức độ đông được. Vì vậy **dùng bản gốc trên Kaggle**.
   - Baidu Drive (link trên trang RPC) khó dùng từ ngoài Trung Quốc.
@@ -538,7 +548,7 @@ Các file được dẫn chiếu (trong thư mục gốc hoặc `models/` của 
 |---|---|---|
 | B1 | Không viết `baselines/adapt.py` riêng, mà chạy `main.py` với các cờ `--use_prompts 0 --optim_groups detr --freeze ''`, cộng thêm `--joint 1` (E0), `--save_hf 1` (FSA), cấu hình 1 lớp và `--pred_ann_dir` (detector cho E5). Mục đích là fine-tune Deformable DETR toàn bộ, không dùng prompt. Chia learning rate theo nhánh có sẵn trong code gốc ([engine.py#L601-L617](https://github.com/zyt95579/PDP_IOD/blob/7702d91d595e5ceed5df333d50c68444d7075ef9/engine.py#L601-L617)): lr 1e-4, backbone 1e-5, `sampling_offsets`/`reference_points` × 0,1. Có 3 chế độ: (a) 200 lớp → **E0**; (b) task 1 → **FSA** (I1); (c) 1 lớp "sản phẩm" → detector cho E5 | Chạy được cả 3 chế độ; E0 có đầu ra đánh giá được bằng V1–V3 |
 | B2 | Cờ bật/tắt thành phần: `--use_shared`, `--use_private`, `--pseudo {none,threshold,ppg}`, `--ddl_lambda`, `--topk`, các cờ I3–I5, cờ augmentation. Thêm các cờ trả về **hành vi gốc** của từng bản sửa cho P1 (khởi tạo prompt task mới F2, gradient L_Q F4, teacher không prompt F5, cách chọn ứng viên cũ F6, prototype không lọc F7, không xáo trộn F12) | Mỗi cờ có test nhỏ; E1, E2, P1 và các ablation chỉ khác nhau ở cờ |
-| B3 | **E5 (truy xuất):** detector B1c + DINOv2 (ViT-S/14 hoặc B/14) trích đặc trưng từ vùng cắt. **Detector B1c (nhóm chốt 29/09, phương án b):** train class-agnostic trên ảnh train của task 1 với **mọi box** trong ảnh, không kèm tên SKU. Tức là giả định cửa hàng đánh box "sản phẩm" (không cần biết SKU) ngay từ đầu. Đây là lợi thế của E5 so với PDP (PDP chỉ có box của SKU task 1) và phải ghi rõ khi báo cáo. Mỗi SKU lưu tối đa 100 embedding (cùng ngân sách với bộ nhớ prototype của PDP); gán nhãn theo prototype hoặc kNN gần nhất; ngưỡng "không chắc" chọn trên val. Task mới chỉ cần thêm embedding, không train lại | Đánh giá được bằng V1–V3 như các phương pháp khác |
+| B3 | **E5 (truy xuất):** detector B1c + DINOv2 (ViT-S/14 hoặc B/14) trích đặc trưng từ vùng cắt. **Detector B1c (nhóm chốt 28/09, phương án b):** train class-agnostic trên ảnh train của task 1 với **mọi box** trong ảnh, không kèm tên SKU. Tức là giả định cửa hàng đánh box "sản phẩm" (không cần biết SKU) ngay từ đầu. Đây là lợi thế của E5 so với PDP (PDP chỉ có box của SKU task 1) và phải ghi rõ khi báo cáo. Mỗi SKU lưu tối đa 100 embedding (cùng ngân sách với bộ nhớ prototype của PDP); gán nhãn theo prototype hoặc kNN gần nhất; ngưỡng "không chắc" chọn trên val. Task mới chỉ cần thêm embedding, không train lại | Đánh giá được bằng V1–V3 như các phương pháp khác |
 
 ---
 
@@ -677,7 +687,7 @@ G2 → A1–A9 → V5, V6 → (demo) → báo cáo → G3
 | I2 | Mặc định không lật ảnh | Lật tạo bao bì chữ ngược gương, không có trên quầy thật |
 | B2 | Thêm cờ trả về hành vi gốc cho P1 | P1 cần chạy lại được hành vi gốc của từng lỗi |
 
-## Phụ lục C. Thay đổi và phát hiện trong lúc implement (28–29/09/2026)
+## Phụ lục C. Thay đổi và phát hiện trong lúc implement (28–28/09/2026)
 
 | Mục | Thay đổi / phát hiện | Ghi chú |
 |---|---|---|
@@ -686,8 +696,8 @@ G2 → A1–A9 → V5, V6 → (demo) → báo cáo → G3
 | V2 | COCOeval chạy 1 lần mỗi task rồi gom tập con (chính xác tuyệt đối, test đối chiếu từng số); chỉ vùng diện tích "all". Nhanh khoảng 5 lần | Không dùng được `accumulate(p)` của pycocotools |
 | R1 | `_atomic_save` của Lightning không an toàn; dùng callback riêng ghi file tạm rồi đổi tên. Ghi ở đầu batch kế tiếp để resume không lặp lại batch | Test: tổng số bước không đổi sau resume |
 | B1 | Tên backbone `backbone.0` của nhánh lr gốc không khớp tên tham số HuggingFace → cấu hình B1 dùng `--lr_backbone_names backbone`. Stem và `layer1` của backbone luôn đóng băng (hành vi chuẩn của Deformable DETR) | |
-| B1c / E5 | Chọn phương án b: detector class-agnostic train trên mọi box của ảnh task 1 (29/09) | Lợi thế của E5, ghi rõ khi báo cáo |
-| Dữ liệu | Ảnh quầy RPC vuông nhưng cạnh 1750–1890 px (không cố định 1800); mirror HuggingFace thiếu tên file và `level` → bắt buộc dùng Kaggle | Kiểm tra 29/09 |
-| QĐ-7 | Đổi thành đẩy public, ghi nguồn; VM lấy code bằng `git` | 29/09 |
+| B1c / E5 | Chọn phương án b: detector class-agnostic train trên mọi box của ảnh task 1 (28/09) | Lợi thế của E5, ghi rõ khi báo cáo |
+| Dữ liệu | Ảnh quầy RPC vuông nhưng cạnh 1750–1890 px (không cố định 1800); mirror HuggingFace thiếu tên file và `level` → bắt buộc dùng Kaggle | Kiểm tra 28/09 |
+| QĐ-7 | Đổi thành đẩy public, ghi nguồn; VM lấy code bằng `git` | 28/09 |
 | Test CPU | Ảnh test 96 px (ở 64 px, batch 1 ảnh làm GroupNorm backward trên CPU lỗi) | Không ảnh hưởng ảnh 800 px |
 | Cấu hình | `configs/exp/*.sh` cho mọi thí nghiệm của mục 7 (P1–P3, FSA_pilot, E0, FSA, DET, E1–E4, A1–A9) | Test parse mọi file |
