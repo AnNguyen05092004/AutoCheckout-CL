@@ -3,9 +3,9 @@
 from types import SimpleNamespace
 
 import torch
-from ppg import prototype_matrix, select_candidates, select_pseudo_labels
 
 import engine
+from ppg import prototype_matrix, select_candidates, select_pseudo_labels
 
 PREV = 3  # classes 0..2 learned before; 3..4 current task; 5 = unused last slot
 NUM_CLASSES = 6

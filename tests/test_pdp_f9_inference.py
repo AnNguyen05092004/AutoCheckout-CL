@@ -7,11 +7,11 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 import torch
-from inference import predict_batch
 
 from autocheckout.predictions import load_predictions
 
 import engine
+from inference import predict_batch
 from models.image_processing_deformable_detr import DeformableDetrImageProcessor
 from pdp_helpers import IMAGE_SIZE, run_main
 

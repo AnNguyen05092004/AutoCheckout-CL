@@ -614,7 +614,30 @@ class local_trainer(pl.LightningModule):
 						flag = True
 				if not flag:
 					print ('Trainable ..', name, "  Req grad .. ",params.requires_grad, file=self.args.log_file)
+			self.log_trainable_parameters()
 	
+	def log_trainable_parameters(self):
+		"""F10: number of trained parameters per group and learning rate, written to the task log.
+
+		Not only prompts and the classifier are trained: input_proj, query_position_embeddings,
+		reference_points, level_embed and bbox_embed are shared by every task and trained at lr_old.
+		"""
+		new_params = self.args.new_params.split(',')
+		groups, total, trainable = {}, 0, 0
+		for name, param in self.model.named_parameters():
+			total += param.numel()
+			if not param.requires_grad:
+				continue
+			trainable += param.numel()
+			parts = name.split('.')
+			group = parts[1] if parts[0] == 'model' else parts[0]
+			lr = self.args.lr if self.match_name_keywords(name, new_params) else self.args.lr_old
+			groups[(group, lr)] = groups.get((group, lr), 0) + param.numel()
+		lines = [f'Trainable parameters: {trainable / 1e6:.2f}M of {total / 1e6:.2f}M']
+		lines += [f'  {group:28s} lr {lr:g}: {count / 1e6:.3f}M' for (group, lr), count in sorted(groups.items())]
+		print('\n'.join(lines), file=self.args.log_file)
+		return total, trainable, groups
+
 	def match_name_keywords(self, n, name_keywords):
 		out = False
 		for b in name_keywords:
