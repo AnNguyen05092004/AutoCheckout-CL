@@ -136,12 +136,15 @@ Mọi thông tin cần để làm tiếp nằm trong file này, `IMPLEMENTATION_
   | P2 (PDP, F1–F13) | 0,042 | 0,039 / 0,017 | 40/100 (task 1), 22/25 (task 2) |
   | FSA_pilot (fine-tune toàn bộ) | 0,085 | – | – |
   | FSA_pilot_eb4 (batch hiệu dụng 4, 2.912 bước) | **0,675** (AP 0,567) | – | – |
+  | P2_eb4 (PDP, batch hiệu dụng 4) | 0,110 | 0,083 / 0,131 | 10/100, 3/25 |
 
   - **Chẩn đoán** (script `diag_loc_cls.py` trong scratchpad của session, không nằm trong repo): mô hình **định vị được** sản phẩm nhưng **không phân loại được SKU**.
     - P2: AP50 không phân biệt lớp 0,73; 81% box thật có query trùng (IoU ≥ 0,5); trong đó chỉ 14% đúng SKU.
     - FSA_pilot: AP50 không phân biệt lớp 0,93; 96% box thật có query trùng; chỉ 19,6% đúng SKU.
     - Điểm tin cậy khi đúng và khi sai gần như bằng nhau (khoảng 0,12 ở P2, 0,17 ở FSA). Loss vẫn đang giảm ở epoch cuối, còn lr và scheduler đúng.
     - FSA_pilot_eb4: 98% box thật có query trùng, **75% đúng SKU**; nhãn đúng nằm trong các nhãn của query 98,5%; `ce` giảm từ 0,61 xuống 0,24 và vẫn đang giảm; cAcc test 0,09.
+    - P2_eb4: batch 4 giúp PDP (task 1 tăng từ 0,042 lên 0,110; prototype gần đủ), nhưng vẫn kém xa fine-tune toàn bộ (0,675). **Phần Deformable DETR đóng băng từ COCO là giới hạn chính với SKU chi tiết**, nên FSA (I1) là bắt buộc cho PDP trên RPC. E3 (PDP đúng như paper) sẽ yếu; đó là một kết quả cần báo cáo.
+    - `QL` khoảng 70 là bình thường: L_Q là cross-entropy trên 300 query với khoảng 12 query khớp mỗi ảnh (≈ 12 × ln 300); gradient chỉ vào `query_tf`.
     - Kết luận: **thiếu bước tối ưu nghiêm trọng**, ở cả PDP lẫn fine-tune toàn bộ. Việc thiếu prototype cũng là hệ quả: F7 chỉ lấy query phân loại đúng.
   - **Đã dừng tay các run không còn giá trị:**
     - P1 (code gốc, `ce` khoảng 500 vì không có F13), vì so với P2 ở mức mAP này chỉ là nhiễu;
