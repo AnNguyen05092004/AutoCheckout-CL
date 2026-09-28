@@ -74,7 +74,7 @@ def test_trainer_appends_pseudo_labels_to_targets():
         PREV_INTRODUCED_CLS=PREV, device=torch.device("cpu"), _old_prototypes=None,
         class_prototypes={c: torch.zeros(4) for c in range(NUM_CLASSES)},
         args=SimpleNamespace(pseudo_topk=50, pseudo="ppg", pseudo_thresh_high=0.5, pseudo_thresh_low=0.2,
-                             prototype_sim_thresh=0.5))
+                             prototype_sim_thresh=0.5, prototype_nearest=0, pseudo_gt_iou=0.0))
     targets = [{"class_labels": torch.tensor([3]), "boxes": torch.tensor([[0.5, 0.5, 0.1, 0.1]])}]
     engine.local_trainer.add_pseudo_labels(trainer, teacher_out, targets)
     assert targets[0]["class_labels"].tolist() == [3, 0, 2]
@@ -88,3 +88,32 @@ def test_original_selection_accepts_the_first_current_class():
     targets = [{"class_labels": torch.tensor([4]), "boxes": torch.rand(1, 4)}]
     engine.local_trainer.generate_old_class_pseudo_labels(trainer, old_results, targets)
     assert targets[0]["class_labels"].tolist() == [4, PREV]
+
+
+def test_i3_drops_pseudo_labels_overlapping_current_task_boxes():
+    logits, boxes, features = fake_teacher({0: (0, 0.9), 1: (1, 0.9)})
+    protos, valid = prototype_matrix({c: torch.randn(4) for c in range(PREV)}, PREV, "cpu")
+    scores, labels, queries, cand_boxes = select_candidates(logits, boxes, PREV, topk=2)
+    gt = boxes[0, [1]] + torch.tensor([0.005, 0.0, 0.0, 0.0])  # a current-task box on query 1's object
+    kwargs = dict(mode="ppg", tau_high=0.5, tau_low=0.2, sim_thresh=0.5, gt_boxes=gt)
+    _, kept = select_pseudo_labels(scores[0], labels[0], cand_boxes[0], features[0, queries[0]], protos, valid,
+                                   gt_iou=0.5, **kwargs)
+    assert kept.tolist() == [0]
+    _, kept_off = select_pseudo_labels(scores[0], labels[0], cand_boxes[0], features[0, queries[0]], protos,
+                                       valid, gt_iou=0.0, **kwargs)
+    assert sorted(kept_off.tolist()) == [0, 1]
+
+
+def test_i4_requires_the_nearest_prototype_to_be_the_proposed_class():
+    logits, boxes, features = fake_teacher({1: (1, 0.4)})
+    feature = features[0, 1]
+    # class 1's prototype is similar enough (cos ~0.8) but class 2's is even closer (cos 1)
+    prototypes = {0: -feature, 1: feature + 0.75 * torch.randn(4), 2: feature.clone()}
+    protos, valid = prototype_matrix(prototypes, PREV, "cpu")
+    scores, labels, queries, cand_boxes = select_candidates(logits, boxes, PREV, topk=1)
+    feats = features[0, queries[0]]
+    common = dict(mode="ppg", tau_high=0.5, tau_low=0.2, sim_thresh=-1.0)
+    _, plain = select_pseudo_labels(scores[0], labels[0], cand_boxes[0], feats, protos, valid, **common)
+    _, nearest = select_pseudo_labels(scores[0], labels[0], cand_boxes[0], feats, protos, valid,
+                                      nearest_prototype=True, **common)
+    assert plain.tolist() == [1] and nearest.tolist() == []

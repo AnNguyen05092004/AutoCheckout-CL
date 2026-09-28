@@ -23,6 +23,12 @@ Boxes stay in the normalised (cx, cy, w, h) format of the model outputs and of t
 
 import torch
 import torch.nn.functional as F
+from torchvision.ops import box_iou
+
+
+def cxcywh_to_xyxy(boxes):
+    cx, cy, w, h = boxes.unbind(-1)
+    return torch.stack([cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2], dim=-1)
 
 
 def select_candidates(logits, boxes, num_old_classes, topk):
@@ -46,12 +52,16 @@ def prototype_matrix(class_prototypes, num_old_classes, device):
 
 
 def select_pseudo_labels(scores, labels, boxes, features, prototypes, valid, *, mode, tau_high, tau_low,
-                         sim_thresh):
+                         sim_thresh, nearest_prototype=False, gt_boxes=None, gt_iou=0.0):
     """Pseudo-labels of one image from its candidates (outputs of select_candidates for that image).
 
     features: [k, D] teacher query features of the candidates.
     mode 'threshold' keeps score > tau_high only; 'ppg' also keeps prototype-verified
     medium-confidence candidates.
+    nearest_prototype (I4): a verified candidate's class must also be its nearest prototype, which
+    guards against confusing similar SKUs (same brand, other flavour).
+    gt_iou > 0 (I3): drop pseudo-labels overlapping a box of the current task's annotations
+    (IoU >= gt_iou), so one object never gets two labels.
     Returns (boxes [n, 4], labels [n]).
     """
     keep = scores > tau_high
@@ -62,7 +72,13 @@ def select_pseudo_labels(scores, labels, boxes, features, prototypes, valid, *, 
             candidate_labels = labels[medium]
             own_similarity = similarity.gather(1, candidate_labels[:, None]).squeeze(1)
             verified = valid[candidate_labels] & (own_similarity >= sim_thresh)
+            if nearest_prototype:
+                similarity[:, ~valid] = -2.0
+                verified &= similarity.argmax(dim=1) == candidate_labels
             keep[medium] = verified
     elif mode != 'threshold':
         raise ValueError(f'unknown pseudo-label mode {mode!r}')
+    if gt_iou > 0 and gt_boxes is not None and len(gt_boxes) and keep.any():
+        overlap = box_iou(cxcywh_to_xyxy(boxes), cxcywh_to_xyxy(gt_boxes.to(boxes.dtype))).max(dim=1).values
+        keep &= overlap < gt_iou
     return boxes[keep], labels[keep]
