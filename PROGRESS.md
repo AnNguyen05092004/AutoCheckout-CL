@@ -55,19 +55,19 @@ Trạng thái: **Xong** = đạt tiêu chí nghiệm thu trong plan; **Đang là
 
 | ID | Trạng thái | Kiểm chứng / ghi chú |
 |---|---|---|
-| R1 | Chưa | |
-| R2 | Chưa | |
-| R3 | Chưa | |
-| R4 | Chưa | |
-| R5 | Chưa | Tùy chọn |
+| R1 | Xong (29/09) | `pdp/checkpointing.py`, scheduler qua Lightning, bộ nhớ prototype trong checkpoint; test ngắt giữa epoch cuối rồi resume: epoch, bước, scheduler, prototype khớp, tổng số bước không đổi |
+| R2 | Xong (29/09) | `scripts/run_exp.sh` + `configs/exp/*.sh` (mọi thí nghiệm); test bằng interpreter giả: bỏ qua task xong, chỉ dự đoán lại, dùng lại task 1, tắt VM cả khi lỗi |
+| R3 | Xong (29/09) | `autocheckout/runinfo.py` → `task_<t>/run_info.json` theo session |
+| R4 | CPU xong, GPU chờ VM | Smoke CPU: `tests/test_pdp_f8_paths.py`, `test_pdp_f9_inference.py`; GPU: `pdp/benchmark.py` + `setup_vm.sh` |
+| R5 | Chưa | Tùy chọn; làm khi chuyển Spot nếu cần |
 | V1 | Xong (28/09) | Lõi trong `pdp/inference.py`; CLI là `main.py --predict_only 1` (thay cho `tools/predict.py` trong plan) |
 | V2 | Code xong (28/09) | `autocheckout/cl_metrics.py`, `tools/eval_cl.py`; M1 khớp COCOeval chạy trên file GT theo nhóm (cách của code gốc) |
 | V3 | Code xong (28/09) | `autocheckout/counting.py`, `tools/eval_count.py`; khớp công thức rpctool; lớp không có GT bị loại khỏi trung bình mCCD/mCIoU (ghi rõ trong file kết quả) |
-| V4 | Chưa | |
-| V5 | Chưa | |
+| V4 | Code xong (29/09) | `pdp/ppg_audit.py`; chạy sau pilot |
+| V5 | Code xong (29/09) | `pdp/benchmark.py` (độ trễ, bộ nhớ, dung lượng/lớp) |
 | V6 | Code xong (28/09) | `tools/summarize.py`: bảng md/csv + biểu đồ |
-| I1–I5 | Chưa | |
-| B1–B3 | B3 code xong (28/09) | `baselines/retrieval.py` (19 test, qua được eval_cl/eval_count). B1, B2 chưa làm |
+| I1–I5 | Xong (29/09) | I1 = FSA qua `--save_hf` + `--repo_name`; I2 `pdp/augment.py`; I3/I4 trong `ppg.py`; I5 `--freeze_shared_after_task1`; mỗi mục có test |
+| B1–B3 | Xong (29/09) | B1 = cờ của `main.py` (joint, save_hf, optim_groups, pred_ann_dir) + DL5 `--joint`/`--agnostic-out`; B2 `--use_shared/--use_private`; B3 `baselines/retrieval.py` |
 
 ### Mốc và thí nghiệm
 
@@ -94,51 +94,52 @@ Trạng thái: **Xong** = đạt tiêu chí nghiệm thu trong plan; **Đang là
 
 ## Nhật ký tiếp
 
-- **29/09/2026**: nhóm chốt E5 = phương án b; giữ 14 snapshot ổ cũ. Kiểm tra nguồn dữ liệu: mirror HuggingFace thiếu tên file và `level`, nên vẫn cần Kaggle. Ảnh quầy RPC không cố định 1800 px (khoảng 1750–1890, vuông); DL2 đã xử lý theo từng ảnh.
+- **29/09/2026**: nhóm chốt E5 = phương án b; giữ 14 snapshot ổ cũ; đẩy repo lên GitHub (public). Xong R1, R2, R3, I1–I5, B1, B2, V4, V5 (code), cấu hình mọi thí nghiệm, script VM, viết lại guide; V2 nhanh hơn khoảng 5 lần (chính xác tuyệt đối). 178 test đạt.
+- 29/09: nhóm chốt E5 = phương án b; giữ 14 snapshot ổ cũ. Kiểm tra nguồn dữ liệu: mirror HuggingFace thiếu tên file và `level`, nên vẫn cần Kaggle. Ảnh quầy RPC không cố định 1800 px (khoảng 1750–1890, vuông); DL2 đã xử lý theo từng ảnh.
 
-## Handoff (cập nhật 28/09/2026, trước khi compact)
+## Handoff (cập nhật 29/09/2026)
 
-Mọi thông tin cần để làm tiếp nằm ở đây, trong plan và `docs/formats.md`; không cần lịch sử hội thoại.
+Mọi thông tin cần để làm tiếp nằm trong file này, `IMPLEMENTATION_PLAN.md` (phụ lục B, C) và `docs/formats.md`.
 
-### Trạng thái code
+### Trạng thái
 
-- `main` sạch, 129 test đạt (`.venv/bin/python -m pytest`; khoảng 1,5 phút). Lint: `.venv/bin/python -m ruff check autocheckout tools tests baselines` (không lint `pdp/`, vì là code upstream).
-- Mỗi bản sửa của `pdp/` là 1 commit có tiền tố mã (F1…F12). `git log -- pdp/` liệt kê mọi khác biệt so với upstream.
-- Luồng một task (`pdp/main.py` → `run_task`): `set_task_id(t-1)` → nạp `task_{t-1}/task_final.pth` (hoặc `--prev_ckpt`) → `set_teacher()` (nếu `--pseudo != none`) → `init_task_prompts()` → `fit` → `save_task_final` → `write_task_predictions` (val/test full).
+- **Code:** mọi task của plan không cần GPU đã code và có test.
+  - Repo: https://github.com/AnNguyen05092004/AutoCheckout-CL (public, QĐ-7). Commit trên Mac rồi `git push`; VM chạy `git fetch` + `git reset --hard origin/main` (guide §5.1).
+  - 178 test đạt trên Mac, khoảng 2 phút (`.venv/bin/python -m pytest`); 3 test kernel chỉ chạy trên GPU.
+  - Lint: `.venv/bin/python -m ruff check autocheckout tools tests baselines`.
+- **Còn lại, đều cần VM:**
+  - T0.3/T0.4: chạy `scripts/setup_vm.sh`.
+  - T0.5: chạy `scripts/download_rpc.sh`, **cần `kaggle.json` của nhóm**.
+  - DL1–DL6 trên dữ liệu thật: `scripts/prepare_data.sh`, sau đó commit `configs/splits`, `configs/tasks_*.json`, `results/data_audit`.
+  - Benchmark chọn `BATCH_SIZE`; mốc G0; pilot P1–P3 và V4; mốc G1; các thí nghiệm E và A (guide §7).
+  - R5 (tùy chọn).
 
-### Việc tiếp theo, theo thứ tự (quyết định thiết kế đã chốt)
+### Việc tiếp theo, theo thứ tự
 
-1. **R1 resume**: `configure_optimizers` trả về cả `StepLR` (interval epoch) và bỏ `self.lr_scheduler.step()` trong `on_train_epoch_end`. Thêm `on_save_checkpoint`/`on_load_checkpoint` lưu `class_query_cache`, `class_prototypes`, `class_cache_count`, `batch_counter`. Viết callback riêng (không dùng `ModelCheckpoint`) ghi `task_<t>/last.ckpt` bằng `trainer.save_checkpoint(tmp)` rồi `os.replace`, giữ `last.ckpt.prev`. Callback ghi cả theo thời gian (khoảng 30 phút, chỉ ngay sau một bước optimizer) và cuối epoch. `run_task` gọi `fit(ckpt_path=last.ckpt nếu có)`. Teacher không nằm trong checkpoint, được dựng lại từ `task_final` của task trước. Khi task xong thì xóa `last.ckpt*`. Test: dừng giữa chừng rồi resume trên CPU, kiểm tra epoch, lr và prototype.
-2. **R3**: ghi `task_<t>/run_info.json`: args, `git rev-parse HEAD` + `git diff`, phiên bản thư viện, tên GPU, md5 các file annotation, thời gian task, `torch.cuda.max_memory_allocated`.
-3. **R2**: `scripts/run_exp.sh <configs/exp/X.sh> [--shutdown]`. File config là bash, được `source`, định nghĩa `EXP`, `N_TASKS`, `ARGS=(...)`, tùy chọn `REUSE_TASK1=<run>` (tạo symlink `task_1`). Mỗi task chạy một process `main.py --start_task t --n_tasks t`; bỏ qua task đã có `DONE`; chạy V2/V3 sau mỗi task; `trap` để `--shutdown` tắt VM kể cả khi lỗi. Cập nhật §7 của guide cho khớp (guide đang ghi `.args`).
-4. **R4**: smoke test CPU đã có (`tests/test_pdp_f8_paths.py`, `test_pdp_f9_inference.py`). Cần thêm smoke GPU trên VM: 200 ảnh thật, đo giây/ảnh và bộ nhớ.
-5. **B2** (các cờ còn thiếu): `--use_shared`, `--use_private` (đặt vào config, `Prompt.forward` bỏ pool tương ứng, DDL bỏ qua khi thiếu pool). Các cờ `--pseudo`, `--pseudo_topk`, `--ddl_lambda` và cờ hành vi gốc đã có.
-6. **I1–I5**: I3 (`--pseudo_gt_iou 0.5`: bỏ nhãn giả chồng lên GT, IoU trên box cxcywh chuẩn hóa) và I4 (`--prototype_nearest`) thêm vào `ppg.select_pseudo_labels`. I5 (`--freeze_shared_after_task1`: đóng băng `input_proj`, `query_tf`, `query_position_embeddings`, `reference_points`, `level_embed`, `bbox_embed` khi t ≥ 2). I2 (augmentation khi train: xoay bội số 90°, đổi màu nhẹ, `shortest_edge` ngẫu nhiên 640–800, không lật) trong `CocoDetection`, chỉ áp cho dataset train. I1 (FSA) = B1b.
-7. **B1**: không viết `baselines/adapt.py` riêng mà dùng `main.py` với cờ `--optim_groups detr` (nhánh else của `configure_optimizers`: lr 1e-4, backbone 1e-5, sampling_offsets/reference_points × 0,1), `--use_prompts 0`, `--freeze ''`, `--pseudo none`. E0 cần DL5 sinh thêm `train_joint(_capped).json` (mọi ảnh train, mọi nhãn) và chạy như một task có `seen_classes = 200`, ghi vào `task_5/`. FSA: fine-tune task 1 rồi `save_pretrained` + processor, sau đó PDP task 1 dùng `--repo_name <thư mục>`. B1c (detector 1 lớp cho E5): DL5 thêm tùy chọn class-agnostic, `--n_classes 2`. Cập nhật plan B1 theo cách này.
-8. **V4** `tools/ppg_audit.py`: teacher + `ppg.py` trên `train_task_<t>_gt_full.json` (1.000 ảnh), đo precision/recall của nhãn giả theo nhánh (tin cậy cao / qua prototype) và theo nhóm hàng. **V5**: đo độ trễ và dung lượng.
-9. Viết lại `GCP_TRAINING_GUIDE.md`: §5.1 lấy code bằng `git bundle` (`scripts/sync_to_vm.sh`, chưa viết); §5.2 cài bằng `requirements.txt` + `pip install -e .`; §6–7 chạy `scripts/prepare_data.sh` và `run_exp.sh`. Cập nhật plan: V1 dùng `--predict_only`, B1 như mục 7.
-10. **Trên VM (tốn tiền, bật khi cần):** T0.3 (venv + `pytest tests/test_pdp_f11_kernel.py`), T0.4, T0.5 (cần `kaggle.json`), DL1 → đọc `results/data_audit/audit.md` → DL2–DL6 → mốc G0 → pilot.
+1. Bật VM `auto-cl` → `git clone` → chạy `setup_vm.sh`. Kiểm tra `kernel: True`, pytest xanh (có cả test kernel). Tắt VM ngay nếu chưa có dữ liệu.
+2. Benchmark (guide §7.1) với `BATCH_SIZE` 2 và 4: ghi số giây/ảnh và bộ nhớ vào plan mục 3.4 (tính lại số giờ GPU), rồi đặt `BATCH_SIZE` trong `configs/exp/common.sh`.
+3. Khi có `kaggle.json`: tải dữ liệu, chạy `prepare_data.sh`, đọc `audit.md`. Rủi ro lớn nhất là hậu tố tên file trùng nhiều giữa val2019 và test2019, làm không đủ nhóm thuần test2019 cho tập test; khi đó DL3 sẽ dừng và báo lỗi, cần quyết định lại cách chia.
+4. Pilot: P1, P2, `FSA_pilot`, P3 → V4 trên P2 → mốc G1 (plan §8).
+5. Chuyển Spot sau khi đã thử ngắt và resume trên VM (plan §3.6), rồi chạy E0, FSA, E1–E4, DET → E5, A1–A9.
 
-### Lưu ý kỹ thuật (đã gặp)
+### Lưu ý kỹ thuật
 
 - **Mac:**
-  - `.venv` dùng lại torch 2.2.2 x86_64 (Rosetta) của Python pyenv 3.10.13, qua `--system-site-packages`. Python gốc này có cả TensorFlow, nên phải đặt `USE_TF=0` (tests/conftest.py đã đặt).
-  - Đặt `HF_HUB_OFFLINE=1`, nếu không mỗi lần dựng model mất khoảng 60 giây chờ Hub.
-  - Chạy script tay ngoài pytest thì tự đặt hai biến trên.
+  - `.venv` dùng lại torch 2.2.2 x86_64 (Rosetta) của Python pyenv 3.10.13.
+  - Đặt `USE_TF=0` và `HF_HUB_OFFLINE=1` (`tests/conftest.py` đã đặt; script chạy tay thì tự đặt).
   - Mac chỉ còn khoảng 7 GB trống.
 - **Test model nhỏ:**
   - `tests/pdp_helpers.py` gồm `use_tiny_detr`, `pdp_args`, `make_trainer`, `make_batch`, `make_toy_dataset`, `run_main`.
-  - Ảnh test 96 px: ở 64 px, batch 1 ảnh làm GroupNorm backward trên CPU lỗi "Expected memory formats…".
+  - Ảnh 96 px.
 - **Style của file trong `pdp/`:**
-  - `engine.py` thụt lề bằng tab, `main.py` và `prompt.py` bằng 4 dấu cách.
-  - File upstream không có newline cuối; giữ nguyên.
-- **Sửa file an toàn:** dùng script Python `assert s.count(old) == 1` rồi `replace`.
-  - Tránh `cd` trong Bash, dùng đường dẫn tuyệt đối.
-  - Trong zsh, không dùng biến tên `path`.
-- **Tách commit:** khi một file chứa nhiều bản sửa, dùng script `split_commits.py` (dựng trạng thái trung gian theo hunk, kiểm tra khớp working tree). Tốt hơn nữa là commit ngay sau mỗi bản sửa.
+  - `engine.py` thụt lề bằng tab.
+  - File upstream không có newline cuối.
+  - Mỗi bản sửa là một commit có tiền tố mã (F…, R…, I…, B…, V…).
+- **Sửa file an toàn:** script Python `assert s.count(old) == 1`; tránh `cd` trong Bash; trong zsh không dùng biến tên `path`.
+- **Tham số dòng lệnh:** tên cờ trong `configs/exp/*.sh` được kiểm tra bằng `tests/test_exp_configs.py`. Thêm cờ mới vào `main.py` thì chạy lại test này.
 
 ### Câu hỏi còn mở cho nhóm
 
-- `kaggle.json` (T0.5); QĐ-5 demo. Snapshot ổ cũ: nhóm quyết định giữ lại (29/09).
-- **E5 (đã chốt 29/09: phương án b)**, ghi lại để tham khảo: detector class-agnostic (B1c) train bằng box nào? (a) chỉ box của task 1, đúng giao thức nhưng detector sẽ học coi SKU tương lai là nền; (b) mọi box của ảnh task 1, không kèm tên SKU, tức giả định cửa hàng gán box "sản phẩm" từ đầu (lợi thế cho E5, phải ghi rõ). Đề xuất: (b) cho bản chính, (a) nếu còn thời gian.
+- `kaggle.json` (T0.5).
+- QĐ-5: demo webcam.
 - **E5 giữa chừng:** softmax không trả lời được "chưa biết", nên SKU chưa học bị gán nhãn SKU gần nhất. Chỉ ảnh hưởng chỉ số ở các task giữa; task cuối không sao.
