@@ -6,8 +6,12 @@ IMPLEMENTATION_PLAN.md, section 4.3:
   most common level of its images (ties go to the easier level).
 - val and test are drawn only from groups whose images all come from test2019; every group
   with a val2019 image stays in train; train is everything else.
-- Stratified by level: for each level, its groups are shuffled with the seed and taken until the
+- ``--stratify level``: for each level, its groups are shuffled with the seed and taken until the
   level has ``--test-per-level`` images in test, then ``--val-per-level`` images in val.
+  ``--stratify none``: groups are drawn from one pool until test has 3 x ``--test-per-level`` images
+  (val: 3 x ``--val-per-level``). Used for the real RPC data, where a group (file-name suffix)
+  holds three baskets of different levels, so a group has no single level; the per-level counts
+  of the result are recorded and come out balanced because groups are.
 - Accepted if every SKU has at least ``--min-test-objects`` objects in test and
   ``--min-val-objects`` in val; otherwise the next seed is tried. Every seed tried is recorded.
 - train_pilot: ``--pilot`` images of train drawn by group, the same number per level.
@@ -52,39 +56,48 @@ def build_groups(coco: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return groups
 
 
-def units(groups: dict[str, dict[str, Any]], keys: list[str]) -> list[tuple[str, str, int]]:
-    """``(key, level, images)`` of each group, the sampling units of ``take_stratified``."""
-    return [(key, groups[key]["level"], len(groups[key]["images"])) for key in keys]
+def stratum(group: dict[str, Any], stratify: str) -> str:
+    return group["level"] if stratify == "level" else "all"
+
+
+def targets_for(per_level: int, stratify: str) -> dict[str, int]:
+    return {level: per_level for level in LEVELS} if stratify == "level" else {"all": per_level * len(LEVELS)}
+
+
+def units(groups: dict[str, dict[str, Any]], keys: list[str], stratify: str) -> list[tuple[str, str, int]]:
+    """``(key, stratum, images)`` of each group, the sampling units of ``take_stratified``."""
+    return [(key, stratum(groups[key], stratify), len(groups[key]["images"])) for key in keys]
 
 
 def draw_splits(groups: dict[str, dict[str, Any]], seed: int, test_per_level: int,
-                val_per_level: int) -> dict[str, list[str]]:
+                val_per_level: int, stratify: str = "level") -> dict[str, list[str]]:
     """Group keys of train / val / test for one seed."""
     rng = random.Random(seed)
     eligible = sorted(key for key, g in groups.items() if g["sources"] == {"test2019"})
-    test = take_stratified(units(groups, eligible), {level: test_per_level for level in LEVELS}, rng)
+    test = take_stratified(units(groups, eligible, stratify), targets_for(test_per_level, stratify), rng)
     in_test = set(test)
     rest = [key for key in eligible if key not in in_test]
-    val = take_stratified(units(groups, rest), {level: val_per_level for level in LEVELS}, rng)
+    val = take_stratified(units(groups, rest, stratify), targets_for(val_per_level, stratify), rng)
     train = sorted(set(groups) - in_test - set(val))
     return {"train": train, "val": val, "test": test}
 
 
-def draw_pilot(groups: dict[str, dict[str, Any]], train: list[str], size: int, seed: int) -> list[str]:
-    targets = largest_remainder({level: 1 for level in LEVELS}, size)
-    return take_stratified(units(groups, train), targets, random.Random(f"pilot-{seed}"))
+def draw_pilot(groups: dict[str, dict[str, Any]], train: list[str], size: int, seed: int,
+               stratify: str = "level") -> list[str]:
+    targets = largest_remainder({level: 1 for level in LEVELS}, size) if stratify == "level" else {"all": size}
+    return take_stratified(units(groups, train, stratify), targets, random.Random(f"pilot-{seed}"))
 
 
 def image_ids(groups: dict[str, dict[str, Any]], keys: list[str]) -> set[int]:
     return {image_id for key in keys for image_id in groups[key]["images"]}
 
 
-def stratum_sizes(groups: dict[str, dict[str, Any]], keys: list[str]) -> dict[str, int]:
-    """Images per level, counting every image of a group at the group's level (as the sampling does)."""
+def stratum_sizes(groups: dict[str, dict[str, Any]], keys: list[str], stratify: str = "level") -> dict[str, int]:
+    """Images per stratum, counting every image of a group in the group's stratum (as the sampling does)."""
     counts = Counter()
     for key in keys:
-        counts[groups[key]["level"]] += len(groups[key]["images"])
-    return {level: counts[level] for level in LEVELS}
+        counts[stratum(groups[key], stratify)] += len(groups[key]["images"])
+    return {name: counts[name] for name in targets_for(1, stratify)}
 
 
 def images_per_level(coco: dict[str, Any], ids: set[int]) -> dict[str, int]:
@@ -99,20 +112,21 @@ def objects_per_sku(coco: dict[str, Any], ids: set[int]) -> dict[int, int]:
 
 def choose_split(coco: dict[str, Any], groups: dict[str, dict[str, Any]], *, seed: int, max_tries: int,
                  test_per_level: int, val_per_level: int, min_test_objects: int,
-                 min_val_objects: int) -> tuple[int, dict[str, list[str]], list[dict[str, Any]]]:
+                 min_val_objects: int,
+                 stratify: str = "level") -> tuple[int, dict[str, list[str]], list[dict[str, Any]]]:
     """Try seeds ``seed, seed+1, ...`` until the per-SKU minimums hold; returns (seed, splits, tried)."""
     minimums = {"test": min_test_objects, "val": min_val_objects}
-    targets = {"test": test_per_level, "val": val_per_level}
+    targets = {"test": targets_for(test_per_level, stratify), "val": targets_for(val_per_level, stratify)}
     tried = []
     for current in range(seed, seed + max_tries):
-        splits = draw_splits(groups, current, test_per_level, val_per_level)
+        splits = draw_splits(groups, current, test_per_level, val_per_level, stratify)
         shortfalls = {}
         for name in ("test", "val"):
-            sizes = stratum_sizes(groups, splits[name])
-            short = {level: n for level, n in sizes.items() if n < targets[name]}
+            sizes = stratum_sizes(groups, splits[name], stratify)
+            short = {key: n for key, n in sizes.items() if n < targets[name][key]}
             if short:
                 raise SystemExit(f"seed {current}: not enough test2019-only groups to give {name} "
-                                 f"{targets[name]} images per level (got {short})")
+                                 f"{targets[name]} images (got {short})")
             counts = objects_per_sku(coco, image_ids(groups, splits[name]))
             shortfalls[name] = {str(cid): n for cid, n in counts.items() if n < minimums[name]}
         accepted = not any(shortfalls.values())
@@ -151,6 +165,8 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--pilot", type=int, default=3000)
     parser.add_argument("--min-test-objects", type=int, default=50)
     parser.add_argument("--min-val-objects", type=int, default=15)
+    parser.add_argument("--stratify", choices=["level", "none"], default="level",
+                        help="'none' for groups that mix levels (the real RPC data, see the module doc)")
     args = parser.parse_args(argv)
 
     coco = load_json(args.ann)
@@ -158,8 +174,8 @@ def main(argv: list[str] | None = None) -> None:
     seed, split_groups, tried = choose_split(
         coco, groups, seed=args.seed, max_tries=args.max_tries, test_per_level=args.test_per_level,
         val_per_level=args.val_per_level, min_test_objects=args.min_test_objects,
-        min_val_objects=args.min_val_objects)
-    split_groups["train_pilot"] = draw_pilot(groups, split_groups["train"], args.pilot, seed)
+        min_val_objects=args.min_val_objects, stratify=args.stratify)
+    split_groups["train_pilot"] = draw_pilot(groups, split_groups["train"], args.pilot, seed, args.stratify)
     check_disjoint(split_groups)
 
     group_of = {image_id: key for key, g in groups.items() for image_id in g["images"]}
@@ -185,7 +201,7 @@ def main(argv: list[str] | None = None) -> None:
         "seed": seed,
         "seeds_tried": tried,
         "params": {k: getattr(args, k) for k in ("test_per_level", "val_per_level", "pilot",
-                                                 "min_test_objects", "min_val_objects")},
+                                                 "min_test_objects", "min_val_objects", "stratify")},
         "ann_md5": md5_file(args.ann),
         "groups": {
             "total": len(groups),

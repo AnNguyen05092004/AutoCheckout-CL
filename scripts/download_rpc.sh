@@ -41,6 +41,6 @@ n_test=$(ls retail_product_checkout/test2019 | wc -l)
 echo "val2019:  $n_val images (expected 6000)"
 echo "test2019: $n_test images (expected 24000)"
 if [[ $n_val -eq 6000 && $n_test -eq 24000 ]]; then
-    rm -f "$ZIP"  # 15.9 GB; download again if the single-product images are needed
+    rm -f "$ZIP"  # 25.3 GB; download again if the single-product images are needed
 fi
 df -h /

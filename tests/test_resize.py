@@ -111,7 +111,7 @@ def test_invalid_sources_fail_loudly(resized, tmp_path):
     src = tmp_path / "wide.jpg"
     Image.new("RGB", (SIDE, SIDE - 10)).save(src)
     with pytest.raises(ValueError, match="annotation says"):
-        resize_one((str(src), str(tmp_path / "out.jpg"), SIZE, 95, SIDE))
+        resize_one((str(src), str(tmp_path / "out.jpg"), SIZE, 95, SIDE, SIDE))
 
 
 def test_lost_objects_stop_the_tool(resized, tmp_path):
@@ -123,3 +123,23 @@ def test_lost_objects_stop_the_tool(resized, tmp_path):
     with pytest.raises(SystemExit, match="object count changed"):
         main(["--raw", str(tmp_path), "--out-dir", str(tmp_path / "out"),
               "--ann-out", str(tmp_path / "a.json")])
+
+
+def test_nearly_square_images_are_scaled_per_axis():
+    """RPC has one 1860x1859 image: it is accepted and its boxes are scaled in x and y separately."""
+    from tools.resize import merge_annotations
+
+    categories = [{"id": 1, "name": "a", "supercategory": "s"}]
+    cocos = {
+        "val2019": {"images": [], "annotations": [], "categories": categories},
+        "test2019": {"categories": categories,
+                     "images": [{"id": 7, "file_name": "20180824-14-36-38-430.jpg", "width": 1860,
+                                 "height": 1859, "level": "easy"}],
+                     "annotations": [{"id": 1, "image_id": 7, "category_id": 1, "bbox": [186.0, 185.9, 372.0, 371.8],
+                                      "area": 372.0 * 371.8, "iscrowd": 0}]},
+    }
+    merged = merge_annotations(cocos, 800)
+    image, ann = merged["images"][0], merged["annotations"][0]
+    assert (image["width"], image["height"], image["orig_width"], image["orig_height"]) == (800, 800, 1860, 1859)
+    assert ann["bbox"] == [80.0, 80.0, 160.0, 160.0]
+    assert ann["area"] == 25600.0

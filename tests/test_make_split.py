@@ -119,3 +119,23 @@ def test_impossible_requests_fail_loudly(split):
         choose_split(merged, groups, **(base | {"min_test_objects": 10**6}))
     with pytest.raises(SystemExit, match="not enough test2019-only groups"):
         choose_split(merged, groups, **(base | {"test_per_level": 1000}))
+
+
+def test_unstratified_split_for_groups_that_mix_levels(tmp_path):
+    """Real RPC suffix groups hold three baskets of different levels: draw groups from one pool."""
+    from tools.make_split import draw_pilot, draw_splits
+
+    groups = {}
+    for g in range(60):  # 60 groups of 9 images, 3 per level, all from test2019 except the last 5
+        ids = list(range(9 * g, 9 * g + 9))
+        groups[f"g{g}"] = {"images": ids, "levels": Counter(easy=3, medium=3, hard=3), "level": "easy",
+                           "sources": {"test2019"} if g < 55 else {"val2019"}}
+    splits = draw_splits(groups, seed=0, test_per_level=30, val_per_level=9, stratify="none")
+    test_images = sum(len(groups[k]["images"]) for k in splits["test"])
+    val_images = sum(len(groups[k]["images"]) for k in splits["val"])
+    assert 90 <= test_images < 99 and 27 <= val_images < 36  # target 3 x per level, overshoot < one group
+    assert not set(splits["test"]) & set(splits["val"])
+    assert {f"g{g}" for g in range(55, 60)} <= set(splits["train"])
+    pilot = draw_pilot(groups, splits["train"], 20, seed=0, stratify="none")
+    assert set(pilot) <= set(splits["train"]) and 20 <= sum(len(groups[k]["images"]) for k in pilot) < 29
+    assert draw_splits(groups, seed=0, test_per_level=30, val_per_level=9, stratify="none") == splits

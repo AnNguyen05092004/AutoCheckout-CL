@@ -5,11 +5,12 @@
   skipped, so the tool can simply be re-run after an interruption.
 - The merged annotation follows docs/formats.md, section 2. Images are numbered 1..N in the
   order (source: val2019 then test2019, original file name); annotations 1..M in the order
-  (new image id, original annotation id). Boxes are scaled by SIZE / original side and areas
-  by its square. A file name used by both sources is prefixed with its source
+  (new image id, original annotation id). Boxes are scaled by SIZE / original width in x and
+  SIZE / original height in y, areas by the product. A file name used by both sources is prefixed with its source
   (``val2019_<name>``, ``test2019_<name>``) in both.
-- The source images must be square and match the size given in the annotation; images must
-  carry a ``level`` and annotations an ``area`` (checked by DL1). Anything else is an error.
+- The source images must be square up to MAX_ASPECT_GAP (one RPC image is 1860x1859) and match
+  the size given in the annotation; images must carry a ``level`` and annotations an ``area``
+  (checked by DL1). Anything else is an error.
 
     python -m tools.resize --raw /data/rpc/raw/retail_product_checkout --out-dir /data/rpc/checkout_800 \\
         --ann-out /data/rpc/ann/checkout_800.json --draw 20 --draw-dir /data/rpc/draw_check
@@ -31,6 +32,8 @@ from tqdm import tqdm
 from autocheckout.io import load_json, save_json
 from autocheckout.rpc import LEVELS, SOURCES, raw_ann_path, raw_image_dir
 
+# Largest allowed |width - height| / max(width, height): RPC has one 1860x1859 image (DL1 audit).
+MAX_ASPECT_GAP = 0.01
 
 def merge_annotations(cocos: dict[str, dict[str, Any]], size: int) -> dict[str, Any]:
     """Merge the raw annotation files of all sources into one COCO dict for SIZE x SIZE images."""
@@ -55,12 +58,12 @@ def merge_annotations(cocos: dict[str, dict[str, Any]], size: int) -> dict[str, 
     images, annotations = [], []
     for new_id, (_, file_name, source, img) in enumerate(rows, start=1):
         width, height = img["width"], img["height"]
-        if width != height:
+        if abs(width - height) > MAX_ASPECT_GAP * max(width, height):
             raise ValueError(f"{source}/{file_name} is not square ({width}x{height})")
         if img.get("level") not in LEVELS:
             raise ValueError(f"{source}/{file_name}: level {img.get('level')!r} not in {LEVELS}; "
                              "check the DL1 audit (tools/audit_rpc.py)")
-        scale = size / width
+        sx, sy = size / width, size / height
         images.append({
             "id": new_id,
             "file_name": f"{source}_{file_name}" if file_name in shared else file_name,
@@ -80,24 +83,24 @@ def merge_annotations(cocos: dict[str, dict[str, Any]], size: int) -> dict[str, 
                 "id": len(annotations) + 1,
                 "image_id": new_id,
                 "category_id": ann["category_id"],
-                "bbox": [round(v * scale, 2) for v in ann["bbox"]],
-                "area": round(ann["area"] * scale * scale, 2),
+                "bbox": [round(v * s, 2) for v, s in zip(ann["bbox"], (sx, sy, sx, sy), strict=True)],
+                "area": round(ann["area"] * sx * sy, 2),
                 "iscrowd": int(ann.get("iscrowd", 0)),
             })
     return {"images": images, "annotations": annotations, "categories": categories}
 
 
-def resize_one(job: tuple[str, str, int, int, int]) -> bool:
+def resize_one(job: tuple[str, str, int, int, int, int]) -> bool:
     """Resize one image; returns False if a correct output already existed."""
-    src, dst, size, quality, orig_side = job
+    src, dst, size, quality, orig_width, orig_height = job
     if os.path.exists(dst):
         with Image.open(dst) as done:
             if done.size == (size, size):
                 return False
     with Image.open(src) as image:
-        if image.size != (orig_side, orig_side):
+        if image.size != (orig_width, orig_height):
             raise ValueError(f"{src}: image is {image.width}x{image.height}, annotation says "
-                             f"{orig_side}x{orig_side}")
+                             f"{orig_width}x{orig_height}")
         resized = image.convert("RGB").resize((size, size), Image.Resampling.LANCZOS)
     tmp = os.path.join(os.path.dirname(dst), f".{os.path.basename(dst)}.tmp")
     resized.save(tmp, format="JPEG", quality=quality)
@@ -150,7 +153,7 @@ def main(argv: list[str] | None = None) -> None:
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     jobs = [(str(raw_image_dir(args.raw, img["source"]) / img["orig_file_name"]),
-             str(args.out_dir / img["file_name"]), args.size, args.quality, img["orig_width"])
+             str(args.out_dir / img["file_name"]), args.size, args.quality, img["orig_width"], img["orig_height"])
             for img in merged["images"]]
     with Pool(args.workers) as pool:
         results = pool.imap_unordered(resize_one, jobs, chunksize=16)

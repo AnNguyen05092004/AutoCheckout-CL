@@ -103,7 +103,7 @@ Camera chụp các sản phẩm khách đặt trên quầy, hệ thống nhận 
 
 | Hạng mục | Dung lượng |
 |---|---|
-| File zip RPC tải từ Kaggle | 15,9 GB (có thể xóa sau khi giải nén; khi cần ảnh sản phẩm đơn thì tải lại) |
+| File zip RPC tải từ Kaggle | 25,3 GB theo lần tải thật ngày 29/09 (lúc lập plan, API báo 15,9 GB). Đã xóa sau khi giải nén; khi cần ảnh sản phẩm đơn thì tải lại (khoảng 4 phút trên VM) |
 | Ảnh quầy gốc, vuông, cạnh khoảng 1750–1890 px (`val2019` + `test2019`) | Khoảng 6 GB (trung bình khoảng 200 KB/ảnh, đo trên 14.194 tên file) |
 | Ảnh quầy đã thu nhỏ về 800×800 | Khoảng 2 GB (ước tính) |
 | Mỗi lần chạy 5 task | Khoảng 2 GB: trọng số cuối mỗi task khoảng 0,28 GB × 5, cộng file dự đoán, cộng một checkpoint resume tạm 0,52 GB |
@@ -234,7 +234,7 @@ Nếu bị trễ, cắt theo thứ tự: A5–A9, rồi E2, rồi dùng ablation
 
 ### 4.1 Nguồn
 
-- Kaggle `diyer22/retail-product-checkout-dataset`, phiên bản 5, 15,9 GB, giấy phép **CC BY-NC-SA 4.0** (chỉ dùng phi thương mại, không đưa dữ liệu lên repo).
+- Kaggle `diyer22/retail-product-checkout-dataset`, phiên bản 5, file zip 25,3 GB (tải thật 29/09), giấy phép **CC BY-NC-SA 4.0** (chỉ dùng phi thương mại, không đưa dữ liệu lên repo).
 - Dữ liệu gồm 200 SKU thuộc 17 nhóm hàng.
 - Ảnh quầy vuông, cạnh không cố định: lấy mẫu 1.300 ảnh (qua bản mirror trên HuggingFace, 29/09) thấy cạnh từ khoảng 1750 đến 1890 px, không phải đúng 1800. DL2 co từng ảnh theo cạnh riêng của nó. Có 3 mức độ đông:
 

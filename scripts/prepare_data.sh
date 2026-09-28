@@ -17,7 +17,9 @@ python -m tools.resize --raw "$RAW" --out-dir "$DATA/checkout_800" --ann-out "$D
     --draw 20 --draw-dir "$DATA/draw_check"
 
 echo "== DL3: group split"
-python -m tools.make_split --ann "$DATA/ann/checkout_800.json" --out-dir "$DATA/splits" --config-dir configs/splits
+# --stratify none: a file-name suffix holds 3 baskets of different levels (DL1 audit, 29/09)
+python -m tools.make_split --ann "$DATA/ann/checkout_800.json" --out-dir "$DATA/splits" --config-dir configs/splits \
+    --stratify none
 
 echo "== DL4: task config"
 python -m tools.make_task_config --categories "$RAW/instances_test2019.json" --name "$TASKS" \

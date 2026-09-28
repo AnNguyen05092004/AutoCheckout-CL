@@ -136,7 +136,7 @@ VM chỉ có một ổ 100 GB. Tạo thư mục dữ liệu dùng chung một l�
 sudo mkdir -p /data/rpc /data/runs && sudo chmod 1777 /data /data/rpc /data/runs
 ```
 
-Dung lượng cần (mục 3.3 của plan): khoảng 50 GB nếu **xóa file zip RPC (15,9 GB) sau khi giải nén**. 80 GB trống là đủ, nhưng phải dọn checkpoint thường xuyên.
+Dung lượng cần (mục 3.3 của plan): khoảng 50 GB nếu **xóa file zip RPC (25,3 GB) sau khi giải nén** (`download_rpc.sh` tự xóa). 80 GB trống là đủ, nhưng phải dọn checkpoint thường xuyên.
 
 Nếu thiếu chỗ thì tăng dung lượng ổ. Việc này không mất dữ liệu; mỗi 50 GB thêm khoảng 130 nghìn VND/tháng:
 
@@ -207,7 +207,7 @@ printf '%s' 'KGAT_...' | gcloud compute ssh auto-cl "${GC[@]}" --command 'mkdir 
 
 ```bash
 source ~/venvs/pdp/bin/activate && cd ~/AutoCheckout-CL
-bash scripts/download_rpc.sh                               # T0.5: tải 15,9 GB (tải tiếp được nếu bị ngắt), giải nén ảnh quầy, xóa zip
+bash scripts/download_rpc.sh                               # T0.5: tải 25,3 GB, khoảng 4 phút (tải tiếp được nếu bị ngắt), giải nén ảnh quầy, xóa zip
 bash scripts/prepare_data.sh 2>&1 | tee /data/rpc/prepare_data.log   # DL1 -> DL6
 ```
 
