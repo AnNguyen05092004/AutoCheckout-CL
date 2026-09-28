@@ -13,11 +13,13 @@ echo "VM auto-cl: $status"
 [[ $status == RUNNING ]] || exit 0
 if [[ ${1:-} == follow ]]; then
     exec gcloud compute ssh auto-cl "${GC[@]}" -- -t \
-        'latest=$(ls -t /data/runs/*.log | grep -v -e pilot_chain -e ppg_audit | head -1); echo "== $latest"; tail -n 5 -F "$latest"'
+        'latest=$(ls -t /data/runs/*.log | grep -v -e pilot_chain -e ppg_audit -e /queue.log | head -1); echo "== $latest"; tail -n 5 -F "$latest"'
 fi
 gcloud compute ssh auto-cl "${GC[@]}" --command '
-    echo "== chain (one line per finished experiment)"; cat /data/runs/pilot_chain.log 2>/dev/null || echo "(none)"
-    latest=$(ls -t /data/runs/*.log 2>/dev/null | grep -v -e pilot_chain -e ppg_audit | head -1)
+    for f in /data/runs/queue.log /data/runs/pilot_chain.log; do
+        [ -f $f ] && { echo "== $(basename $f) (one line per finished experiment)"; cat $f; }
+    done
+    latest=$(ls -t /data/runs/*.log 2>/dev/null | grep -v -e pilot_chain -e ppg_audit -e /queue.log | head -1)
     if [ -n "$latest" ]; then
         echo "== current: $(basename "$latest" .log)"
         grep -E "^-- task|^== " "$latest" | tail -2
