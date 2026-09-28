@@ -129,27 +129,34 @@ Mọi thông tin cần để làm tiếp nằm trong file này, `IMPLEMENTATION_
 - **Tập test đã khóa:** `configs/splits/rpc_checkout_seed0.json`; md5 của `test_full.json` là `8a508281e591baebff547422be7899a3` (trong `configs/splits/manifest_100-4x25_seed0.json`).
 - **Benchmark L4:** 0,336 giây/ảnh cho task ≥ 2 với batch 4 (6,2 GB) → `BATCH_SIZE=4`; suy luận 110 ms/ảnh. Khoảng 17 giờ cho mỗi lần chạy 5 task; khoảng 165 giờ cho cả plan.
 - **Mốc G0:** đạt (smoke GPU trên ảnh thật).
-- **ĐANG CHẠY: pilot** (bắt đầu 14:28 UTC = 21:28 giờ VN), tmux `pilot`, `scripts/run_pilot.sh`: P2 → P1 → FSA_pilot → P3 → V4 (`ppg_audit` trên P2 task 2).
-  - Mất khoảng 6 giờ; **VM tự tắt khi xong, kể cả khi lỗi.**
-  - Theo dõi từ Mac: `bash scripts/vm_status.sh` (tóm tắt) hoặc `bash scripts/vm_status.sh follow` (log trực tiếp). tmux trống vì output nằm trong `/data/runs/<tên>.log`.
-  - Mỗi thí nghiệm xong ghi một dòng vào `/data/runs/pilot_chain.log`.
-  - Lúc 21:50: P2, task 1, epoch 2/4; `loss_ce` khoảng 0,89 (đầu là khoảng 1,07, sau khi sửa F13).
-  - Lúc 22:11: P2 train xong task 1 (43 phút, khoảng 10,5 phút/epoch; `loss_ce` cuối khoảng 0,60), không lỗi. **`WARNING: task 1: 40 classes have no prototype`** (40/100 lớp). Với 40 lớp này, ở task 2 PPG chỉ nhận ứng viên có điểm > τh = 0,5; ứng viên điểm trung bình bị bỏ vì không có prototype để so (`valid` = False trong `ppg.py`). Không làm hỏng quá trình chạy, nhưng nhánh prototype chỉ hoạt động với 60% lớp cũ.
-  - Lúc 22:35: P2 đang train task 2 (0,35 giây/ảnh, khớp benchmark).
-    - Đã chấm thử task 1 trên val, trong thư mục tạm `/tmp/p2check` trên VM: **mAP@C AP50 = 0,042** (AP 0,035). Rất thấp.
-    - Scheduler và lr đúng thiết kế (StepLR, `lr_drop` 40; classifier và prompt lr 1e-4).
-    - Có 2 nguyên nhân khả dĩ:
-      1. Quá ít bước tối ưu: 2.910 ảnh × 4 epoch / batch hiệu dụng 32 = 364 bước, trong khi `loss_ce` vẫn đang giảm đều. Code gốc train trên COCO với số bước lớn hơn nhiều.
-      2. Backbone, encoder và decoder bị đóng băng từ bản Deformable DETR học trên COCO, chưa phân biệt được các SKU gần giống nhau.
-    - Hệ quả: ở mức mAP này, so sánh P2 với P1 gần như chỉ là nhiễu. FSA_pilot và P3 sẽ cho biết nguyên nhân 2 nặng đến đâu.
-  - Qua đêm 28–29/09 (nhóm cho phép tự chạy tiếp): agent theo dõi bằng watcher trên Mac, dừng khi mỗi thí nghiệm xong, khi VM tắt, hoặc khi log đứng yên 45 phút. Sau pilot sẽ đánh giá G1, chẩn đoán vấn đề thiếu bước tối ưu, rồi chạy tiếp các thí nghiệm không phụ thuộc cấu hình E1–E4 (FSA, DET).
+- **Pilot (28/09, 14:28–17:15 UTC): đã dừng sớm.** Kết quả trên val, pilot 100+25 lớp, 4 epoch, batch hiệu dụng 32 (364 bước tối ưu ở task 1):
+
+  | Run | mAP@C AP50 sau task 1 | Sau task 2: lớp cũ / lớp mới | Lớp thiếu prototype |
+  |---|---|---|---|
+  | P2 (PDP, F1–F13) | 0,042 | 0,039 / 0,017 | 40/100 (task 1), 22/25 (task 2) |
+  | FSA_pilot (fine-tune toàn bộ) | 0,085 | – | – |
+
+  - **Chẩn đoán** (script `diag_loc_cls.py` trong scratchpad của session, không nằm trong repo): mô hình **định vị được** sản phẩm nhưng **không phân loại được SKU**.
+    - P2: AP50 không phân biệt lớp 0,73; 81% box thật có query trùng (IoU ≥ 0,5); trong đó chỉ 14% đúng SKU.
+    - FSA_pilot: AP50 không phân biệt lớp 0,93; 96% box thật có query trùng; chỉ 19,6% đúng SKU.
+    - Điểm tin cậy khi đúng và khi sai gần như bằng nhau (khoảng 0,12 ở P2, 0,17 ở FSA). Loss vẫn đang giảm ở epoch cuối, còn lr và scheduler đúng.
+    - Kết luận: **thiếu bước tối ưu nghiêm trọng**, ở cả PDP lẫn fine-tune toàn bộ. Việc thiếu prototype cũng là hệ quả: F7 chỉ lấy query phân loại đúng.
+  - **Đã dừng tay các run không còn giá trị:**
+    - P1 (code gốc, `ce` khoảng 500 vì không có F13), vì so với P2 ở mức mAP này chỉ là nhiễu;
+    - P3 (dựng trên nền FSA_pilot yếu) và V4.
+    - Dừng bằng SIGKILL nên trap không chạy và VM không tắt. `pilot_chain.log` ghi `P1 exit=137`.
+  - Tốc độ đo được (G1b): PDP task 1 0,22 giây/ảnh; task ≥ 2 0,35 giây/ảnh; fine-tune toàn bộ 0,15–0,18 giây/ảnh; dự đoán val+test khoảng 16 phút mỗi task.
+- **ĐANG CHẠY (từ 17:17 UTC 28/09): hàng đợi chẩn đoán**, tmux `queue`, `scripts/run_queue.sh`, file `/data/runs/queue.txt`, log `/data/runs/queue.log`.
+  - Thứ tự: `FSA_pilot_eb4` → `P2_eb4` → `P3_eb4`. Giống FSA_pilot/P2/P3 nhưng batch hiệu dụng 4 (không gộp gradient), tức gấp 8 lần số bước với cùng lượng tính toán. Tổng khoảng 5 giờ.
+  - **VM tự tắt khi hết hàng đợi.**
+  - Câu hỏi cần trả lời: với đủ bước, PDP và fine-tune toàn bộ đạt mAP bao nhiêu trên pilot? Prototype có đủ lớp không? Kết quả quyết định cấu hình train (batch hiệu dụng, số epoch) cho E0–E4, **cần nhóm chốt** vì ảnh hưởng ngân sách GPU.
 
 ### Việc tiếp theo, theo thứ tự
 
-1. **Khi pilot xong** (VM đã tắt; `vm_status.sh` báo `TERMINATED`):
-   - bật VM (`gcloud compute instances start auto-cl --zone=us-central1-c --project=project-95a0d104-9d0f-4aa1-ba0`, có thể gặp STOCKOUT thì thử lại);
-   - đọc `pilot_chain.log`, `/data/runs/{P1,P2,P3}/metrics_cl_val.md`, `metrics_count_test.md`, `/data/runs/P2/task_2/ppg_audit.json`, và các dòng `WARNING: task ... classes have no prototype` trong `/data/runs/P2.log`.
-2. **Đánh giá mốc G1 (plan §8), chỉ dựa trên val:**
+1. **Khi hàng đợi chẩn đoán xong** (`queue.log` có dòng `queue finished`, VM tắt):
+   - đọc `/data/runs/{FSA_pilot_eb4,P2_eb4,P3_eb4}/metrics_cl_val.md` và các dòng `WARNING: task ... classes have no prototype` trong `/data/runs/<tên>.log`;
+   - so với bảng pilot ở trên; đề xuất cấu hình train cho E0–E4 để nhóm chốt.
+2. **Đánh giá mốc G1 (plan §8), chỉ dựa trên val.** Làm với các run `_eb4`, hoặc với cấu hình được chọn nếu nó khác:
    - (a) P2 phải tốt hơn P1 ở mAP@P của task 2; nếu không thì rà lại F2, F5, F6.
    - (b) Tốc độ thật đã có.
    - (c) FSA làm giảm mAP@C của task 2 ≥ 3 điểm (P3 so với P2) thì bỏ FSA hoặc giảm số epoch FSA.
