@@ -19,6 +19,7 @@ from datasets.coco_hug import CocoDetection, task_info_coco, create_task_json
 from models.image_processing_deformable_detr import DeformableDetrImageProcessor 
 from models.configuration_deformable_detr import DeformableDetrConfig
 from models.modeling_deformable_detr import DeformableDetrForObjectDetection
+from ppg import prototype_matrix, select_candidates, select_pseudo_labels
 
 class local_trainer(pl.LightningModule):
 	def __init__(self, train_loader, val_loader, test_dataset, args, local_evaluator, task_id, eval_mode=False):
@@ -39,6 +40,7 @@ class local_trainer(pl.LightningModule):
 		seen_classes = detr_config.PREV_INTRODUCED_CLS + detr_config.CUR_INTRODUCED_CLS
 		# F5: frozen copy of the previous task's model; not registered as a submodule (see set_teacher)
 		self.__dict__['teacher'] = None
+		self._old_prototypes = None  # F6: prototype matrix of the earlier classes, built on first use
 		#### prompt arguments
 		detr_config.use_prompts = args.use_prompts
 		detr_config.n_tasks = args.n_tasks
@@ -116,6 +118,7 @@ class local_trainer(pl.LightningModule):
 	def on_fit_start(self):
 		if self.teacher is not None:
 			self.teacher.to(self.device)
+		self._old_prototypes = None
 
 	@torch.no_grad()
 	def teacher_outputs(self, pixel_values, pixel_mask):
@@ -291,6 +294,24 @@ class local_trainer(pl.LightningModule):
 
 		return labels
 
+	def add_pseudo_labels(self, teacher_outputs, labels):
+		"""Append pseudo-labels of earlier classes to each image's targets (PPG, fix F6; see ppg.py)."""
+		prev = self.PREV_INTRODUCED_CLS
+		scores, cand_labels, queries, boxes = select_candidates(
+			teacher_outputs.logits, teacher_outputs.pred_boxes, prev, self.args.pseudo_topk)
+		if self._old_prototypes is None:
+			self._old_prototypes = prototype_matrix(self.class_prototypes, prev, self.device)
+		prototypes, valid = self._old_prototypes
+		for i, target in enumerate(labels):
+			features = teacher_outputs.last_hidden_state[i, queries[i]]
+			new_boxes, new_labels = select_pseudo_labels(
+				scores[i], cand_labels[i], boxes[i], features, prototypes, valid, mode=self.args.pseudo,
+				tau_high=self.args.pseudo_thresh_high, tau_low=self.args.pseudo_thresh_low,
+				sim_thresh=self.args.prototype_sim_thresh)
+			target['class_labels'] = torch.cat([target['class_labels'], new_labels.to(target['class_labels'].dtype)])
+			target['boxes'] = torch.cat([target['boxes'], new_boxes.to(target['boxes'].dtype)])
+		return labels
+
 	def common_step(self, batch, batch_idx, return_outputs=None):
 		pixel_values = batch["pixel_values"].to(self.device)
 		pixel_mask = batch["pixel_mask"].to(self.device)
@@ -305,13 +326,15 @@ class local_trainer(pl.LightningModule):
 			hasattr(self.args, 'use_distillation') and self.args.use_distillation):
 			old_model_outputs = self.teacher_outputs(pixel_values, pixel_mask)
 		if old_model_outputs is not None:
-
-			old_results = self.processor.post_process(
-				old_model_outputs,
-				target_sizes=orig_target_sizes,
-				bg_thres_topk=self.args.bg_thres_topk
-			)
-			labels = self.generate_old_class_pseudo_labels(old_results, labels, old_model_outputs)
+			if self.args.ppg_legacy:
+				old_results = self.processor.post_process(
+					old_model_outputs,
+					target_sizes=orig_target_sizes,
+					bg_thres_topk=self.args.bg_thres_topk
+				)
+				labels = self.generate_old_class_pseudo_labels(old_results, labels, old_model_outputs)
+			else:
+				labels = self.add_pseudo_labels(old_model_outputs, labels)
 		if self.args.use_prompts:
 			with torch.no_grad():
 

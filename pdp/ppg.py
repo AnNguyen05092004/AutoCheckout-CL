@@ -1,0 +1,68 @@
+"""Pseudo-labels for objects of earlier tasks: prototypical pseudo-label generation (PPG), fix F6.
+
+At task t (t >= 2) only objects of task-t classes are annotated. The teacher (the model after task
+t-1) proposes objects of earlier classes, and PPG keeps
+
+- high-confidence proposals: score > tau_high;
+- medium-confidence proposals (tau_low < score <= tau_high) whose query feature is close to the
+  prototype of the proposed class (cosine >= sim_thresh).
+
+Differences with the original `local_trainer.generate_old_class_pseudo_labels` (kept for P1):
+
+- candidates are ranked per query, using the query's best earlier class; classes >= PREV (current
+  and future tasks, and the unused last slot) are excluded before ranking. The original took the
+  top-5 (query, class) pairs over all classes first and filtered afterwards, which leaves too few
+  candidates for images with about 12 objects, and one query could yield several labels;
+- only labels < PREV are accepted (the original used <=, which let in the first class of the
+  current task);
+- a candidate's feature is taken at its query index (the original indexed the feature tensor with
+  the candidate's position in the top-k list).
+
+Boxes stay in the normalised (cx, cy, w, h) format of the model outputs and of the targets.
+"""
+
+import torch
+import torch.nn.functional as F
+
+
+def select_candidates(logits, boxes, num_old_classes, topk):
+    """Top-k queries of each image ranked by their best earlier-class probability.
+
+    logits: [B, Q, C] raw teacher logits; boxes: [B, Q, 4] normalised cxcywh.
+    Returns scores [B, k], labels [B, k] (all < num_old_classes), queries [B, k], boxes [B, k, 4].
+    """
+    best_score, best_label = logits[..., :num_old_classes].sigmoid().max(dim=-1)
+    k = min(topk, best_score.shape[1])
+    scores, queries = best_score.topk(k, dim=1)
+    labels = best_label.gather(1, queries)
+    boxes = boxes.gather(1, queries.unsqueeze(-1).expand(-1, -1, boxes.shape[-1]))
+    return scores, labels, queries, boxes
+
+
+def prototype_matrix(class_prototypes, num_old_classes, device):
+    """[num_old, D] prototypes of the earlier classes and a mask of the classes that have one."""
+    prototypes = torch.stack([class_prototypes[c].to(device) for c in range(num_old_classes)])
+    return prototypes, prototypes.norm(dim=1) > 1e-8
+
+
+def select_pseudo_labels(scores, labels, boxes, features, prototypes, valid, *, mode, tau_high, tau_low,
+                         sim_thresh):
+    """Pseudo-labels of one image from its candidates (outputs of select_candidates for that image).
+
+    features: [k, D] teacher query features of the candidates.
+    mode 'threshold' keeps score > tau_high only; 'ppg' also keeps prototype-verified
+    medium-confidence candidates.
+    Returns (boxes [n, 4], labels [n]).
+    """
+    keep = scores > tau_high
+    if mode == 'ppg':
+        medium = (scores > tau_low) & ~keep
+        if medium.any():
+            similarity = F.normalize(features[medium], dim=-1) @ F.normalize(prototypes, dim=-1).T
+            candidate_labels = labels[medium]
+            own_similarity = similarity.gather(1, candidate_labels[:, None]).squeeze(1)
+            verified = valid[candidate_labels] & (own_similarity >= sim_thresh)
+            keep[medium] = verified
+    elif mode != 'threshold':
+        raise ValueError(f'unknown pseudo-label mode {mode!r}')
+    return boxes[keep], labels[keep]

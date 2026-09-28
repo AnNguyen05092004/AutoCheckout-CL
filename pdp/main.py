@@ -205,6 +205,15 @@ def get_args_parser():
                         help='F4: let the query loss L_Q back-propagate into query_tf')
     parser.add_argument('--teacher_prompts', default=1, type=int,
                         help='F5: teacher runs two passes with the prompts of earlier tasks (as at inference)')
+    parser.add_argument('--pseudo', default='ppg', choices=['ppg', 'threshold', 'none'],
+                        help='Pseudo-labels of earlier classes: PPG (paper), fixed threshold only, or none')
+    parser.add_argument('--ppg_legacy', default=0, type=int,
+                        help='F6: 1 = original candidate selection (top bg_thres_topk (query, class) pairs)')
+    parser.add_argument('--pseudo_topk', default=50, type=int,
+                        help='F6: teacher queries considered per image (ranked by best earlier-class score)')
+    parser.add_argument('--pseudo_thresh_high', default=0.5, type=float, help='PPG tau_h (paper: 0.5)')
+    parser.add_argument('--pseudo_thresh_low', default=0.2, type=float, help='PPG tau_l (paper: 0.2)')
+    parser.add_argument('--prototype_sim_thresh', default=0.5, type=float, help='PPG theta_s (paper: 0.5)')
     parser.add_argument('--shuffle', default=1, type=int,
                         help='F12: shuffle the training data every epoch')
     parser.add_argument('--require_kernel', default=0, type=int,
@@ -353,7 +362,7 @@ def main(args):
 
         # F5: teacher = frozen copy of the model after the previous task, taken before the new
         # task's prompts are initialised.
-        if task_id > 1 and not args.eval:
+        if task_id > 1 and not args.eval and args.pseudo != 'none':
             trainer.set_teacher()
 
         # F2: must run after set_task_id() and after the previous weights are loaded (loading would
