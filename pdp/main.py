@@ -201,6 +201,8 @@ def get_args_parser():
                         help='F2: Gram-Schmidt init of the private prompts of each new task')
     parser.add_argument('--ddl_lambda', default=0.15, type=float,
                         help='F3: weight of the directional decoupled loss L_DDL (paper: 0.15; 0 disables it)')
+    parser.add_argument('--query_loss_grad', default=1, type=int,
+                        help='F4: let the query loss L_Q back-propagate into query_tf')
 
     # Bounding box thresholds
     parser.add_argument('--bbox_thresh', default=0.3, type=float, 

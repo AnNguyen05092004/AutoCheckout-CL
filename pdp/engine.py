@@ -328,11 +328,15 @@ class local_trainer(pl.LightningModule):
 						for j in ind[0]:
 							one_hot_proposals[i][j] = 1
 
-					query_wt = self.model.model.prompts.query_tf(query.view(query.shape[0],-1))
-					query_loss = F.cross_entropy(query_wt, one_hot_proposals)
-					
 				if self.args.bg_thres and not return_outputs:
 					results = self.processor.post_process(outputs, target_sizes=orig_target_sizes, bg_thres_topk=self.args.bg_thres_topk)
+
+			if self.args.local_query:
+				# F4: L_Q is computed outside no_grad so that it trains query_tf; only the forward pass
+				# producing the query is gradient-free. --query_loss_grad 0 restores the original.
+				with torch.set_grad_enabled(torch.is_grad_enabled() and bool(self.args.query_loss_grad)):
+					query_wt = self.model.model.prompts.query_tf(query.view(query.shape[0],-1))
+					query_loss = F.cross_entropy(query_wt, one_hot_proposals)
 
 		else:
 			query = None
