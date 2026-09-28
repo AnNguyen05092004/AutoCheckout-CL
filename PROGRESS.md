@@ -135,6 +135,14 @@ Mọi thông tin cần để làm tiếp nằm trong file này, `IMPLEMENTATION_
   - Mỗi thí nghiệm xong ghi một dòng vào `/data/runs/pilot_chain.log`.
   - Lúc 21:50: P2, task 1, epoch 2/4; `loss_ce` khoảng 0,89 (đầu là khoảng 1,07, sau khi sửa F13).
   - Lúc 22:11: P2 train xong task 1 (43 phút, khoảng 10,5 phút/epoch; `loss_ce` cuối khoảng 0,60), không lỗi. **`WARNING: task 1: 40 classes have no prototype`** (40/100 lớp). Với 40 lớp này, ở task 2 PPG chỉ nhận ứng viên có điểm > τh = 0,5; ứng viên điểm trung bình bị bỏ vì không có prototype để so (`valid` = False trong `ppg.py`). Không làm hỏng quá trình chạy, nhưng nhánh prototype chỉ hoạt động với 60% lớp cũ.
+  - Lúc 22:35: P2 đang train task 2 (0,35 giây/ảnh, khớp benchmark).
+    - Đã chấm thử task 1 trên val, trong thư mục tạm `/tmp/p2check` trên VM: **mAP@C AP50 = 0,042** (AP 0,035). Rất thấp.
+    - Scheduler và lr đúng thiết kế (StepLR, `lr_drop` 40; classifier và prompt lr 1e-4).
+    - Có 2 nguyên nhân khả dĩ:
+      1. Quá ít bước tối ưu: 2.910 ảnh × 4 epoch / batch hiệu dụng 32 = 364 bước, trong khi `loss_ce` vẫn đang giảm đều. Code gốc train trên COCO với số bước lớn hơn nhiều.
+      2. Backbone, encoder và decoder bị đóng băng từ bản Deformable DETR học trên COCO, chưa phân biệt được các SKU gần giống nhau.
+    - Hệ quả: ở mức mAP này, so sánh P2 với P1 gần như chỉ là nhiễu. FSA_pilot và P3 sẽ cho biết nguyên nhân 2 nặng đến đâu.
+  - Qua đêm 28–29/09 (nhóm cho phép tự chạy tiếp): agent theo dõi bằng watcher trên Mac, dừng khi mỗi thí nghiệm xong, khi VM tắt, hoặc khi log đứng yên 45 phút. Sau pilot sẽ đánh giá G1, chẩn đoán vấn đề thiếu bước tối ưu, rồi chạy tiếp các thí nghiệm không phụ thuộc cấu hình E1–E4 (FSA, DET).
 
 ### Việc tiếp theo, theo thứ tự
 
