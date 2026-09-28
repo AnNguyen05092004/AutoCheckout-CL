@@ -21,7 +21,7 @@ from engine import local_trainer, Evaluator
 from lightning.pytorch.loggers import CSVLogger
 from lightning.pytorch import seed_everything
 from pytorch_lightning.callbacks import ModelCheckpoint
-from datasets.coco_hug import CocoDetection, task_info_coco,task_info_voc, create_task_json 
+from datasets.coco_hug import CocoDetection, task_info_coco,task_info_voc,task_info_rpc, create_task_json 
 from models.image_processing_deformable_detr import DeformableDetrImageProcessor 
 
 
@@ -193,6 +193,8 @@ def get_args_parser():
                         help='Directory for task annotations')
     parser.add_argument('--split_point', default=0, type=int, 
                         help='Point to split training data for task setup')
+    parser.add_argument('--task_config', default='', type=str,
+                        help='Task config JSON (configs/tasks_*.json); replaces the hard-coded COCO task split')
 
     # Bounding box thresholds
     parser.add_argument('--bbox_thresh', default=0.3, type=float, 
@@ -208,6 +210,23 @@ def get_args_parser():
     
     return parser
 
+
+def setup_task_info(args):
+    """Fill args.task_map, args.task_label2name and args.task_num_classes."""
+    if args.task_config:
+        args.task_map, args.task_label2name = task_info_rpc(args.task_config)
+        # Pool sizes come from every task of the config (incl. reserved ones), not only the n_tasks
+        # being run, so the private pool has one slot per class slot of the model (F1).
+        args.task_num_classes = [args.task_map[task_id][2] for task_id in sorted(args.task_map)]
+        n_slots = sum(args.task_num_classes)
+        if args.n_classes != n_slots + 1:
+            raise ValueError(f'--n_classes must be {n_slots + 1} (slots + 1) for {args.task_config}, got {args.n_classes}')
+    else:
+        args.task_map, args.task_label2name =  task_info_coco(split_point=args.split_point)
+        args.task_num_classes =  [args.task_map[task_id][2] for task_id in range(1, args.n_tasks + 1)]
+    #print(args.task_num_classes)
+    args.task_label2name[args.n_classes-1] = "BG"
+
 def main(args):
 
     # fix the seed for reproducibility
@@ -221,10 +240,7 @@ def main(args):
     args.iou_types = ['bbox']
     out_dir_root = args.output_dir
     
-    args.task_map, args.task_label2name =  task_info_coco(split_point=args.split_point)
-    args.task_num_classes =  [args.task_map[task_id][2] for task_id in range(1, args.n_tasks + 1)]
-    #print(args.task_num_classes)
-    args.task_label2name[args.n_classes-1] = "BG"
+    setup_task_info(args)
 
     if args.repo_name:
         processor = DeformableDetrImageProcessor.from_pretrained(args.repo_name)

@@ -89,6 +89,19 @@ def task_info_voc(split_point=10):
 
     return task_map, task_label2name
 
+def task_info_rpc(task_config_path):
+    """Task map for RPC read from a task config file (configs/tasks_*.json, see docs/formats.md).
+
+    Same return format as task_info_coco: task_map[task_id] = (class names, first label, number of
+    classes). It covers every task of the config, including reserved ones, so the private prompt
+    pool gets one slot per class for all tasks (fix F1).
+    """
+    from autocheckout.taskcfg import TaskConfig
+
+    cfg = TaskConfig.load(task_config_path)
+    task_map = {t.task_id: ([c.name for c in t.classes], t.offset, t.num_classes) for t in cfg.tasks}
+    return task_map, cfg.label_names()
+
 def create_task_json(root_json, cat_names, set_type='train', offset=0, task_id=1, output_dir='', task_label2name=None):
 
     print ('Creating temp JSON for tasks ',task_id,' ...', set_type)

@@ -22,7 +22,7 @@ from pycocotools import mask as coco_mask
 from .torchvision_datasets import CocoDetection as TvCocoDetection
 import torchvision
 
-from .create_coco_instance import create_task_json, task_info_coco,task_info_voc
+from .create_coco_instance import create_task_json, task_info_coco,task_info_voc,task_info_rpc
 
 class CocoDetection(torchvision.datasets.CocoDetection):
     def __init__(self, img_folder, ann_file, processor):
