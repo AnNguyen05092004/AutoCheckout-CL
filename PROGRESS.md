@@ -134,6 +134,7 @@ Mọi thông tin cần để làm tiếp nằm trong file này, `IMPLEMENTATION_
   - Theo dõi từ Mac: `bash scripts/vm_status.sh` (tóm tắt) hoặc `bash scripts/vm_status.sh follow` (log trực tiếp). tmux trống vì output nằm trong `/data/runs/<tên>.log`.
   - Mỗi thí nghiệm xong ghi một dòng vào `/data/runs/pilot_chain.log`.
   - Lúc 21:50: P2, task 1, epoch 2/4; `loss_ce` khoảng 0,89 (đầu là khoảng 1,07, sau khi sửa F13).
+  - Lúc 22:11: P2 train xong task 1 (43 phút, khoảng 10,5 phút/epoch; `loss_ce` cuối khoảng 0,60), không lỗi. **`WARNING: task 1: 40 classes have no prototype`** (40/100 lớp). Với 40 lớp này, ở task 2 PPG chỉ nhận ứng viên có điểm > τh = 0,5; ứng viên điểm trung bình bị bỏ vì không có prototype để so (`valid` = False trong `ppg.py`). Không làm hỏng quá trình chạy, nhưng nhánh prototype chỉ hoạt động với 60% lớp cũ.
 
 ### Việc tiếp theo, theo thứ tự
 
@@ -144,7 +145,7 @@ Mọi thông tin cần để làm tiếp nằm trong file này, `IMPLEMENTATION_
    - (a) P2 phải tốt hơn P1 ở mAP@P của task 2; nếu không thì rà lại F2, F5, F6.
    - (b) Tốc độ thật đã có.
    - (c) FSA làm giảm mAP@C của task 2 ≥ 3 điểm (P3 so với P2) thì bỏ FSA hoặc giảm số epoch FSA.
-   - **Rủi ro cần xem:** smoke 1 epoch có 24/25 lớp mới không có prototype, vì F7 chỉ lấy query phân loại đúng. Nếu pilot 4 epoch vẫn thiếu nhiều thì nhánh prototype của PPG gần như không hoạt động. Hướng xử lý: nới F7 (ví dụ lấy lớp đúng trong top-k, hoặc cập nhật prototype ở 2 epoch cuối), rồi so sánh trên val.
+   - **Rủi ro cần xem:** smoke 1 epoch có 24/25 lớp mới không có prototype, vì F7 chỉ lấy query phân loại đúng. Pilot 4 epoch: task 1 của P2 thiếu 40/100 lớp (xem trên); còn cần xem task 2 và V4. Nếu thiếu nhiều thì nhánh prototype của PPG hoạt động kém. Hướng xử lý: nới F7 (ví dụ lấy lớp đúng trong top-k, hoặc cập nhật prototype ở 2 epoch cuối), rồi so sánh trên val.
    - Ghi kết quả vào PROGRESS.md và plan.
 3. **Nếu G1 đạt:** chuyển `auto-cl` sang Spot (guide §2.5, VM phải tắt).
    - Thứ tự chạy: FSA → E4 và E0, E1, E2, E3 → DET → E5 (guide §7.4) → A1–A9. A1, A4, A7, A8 dùng lại task 1 của E4.
