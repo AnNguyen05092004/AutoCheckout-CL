@@ -50,6 +50,7 @@ class local_trainer(pl.LightningModule):
 		detr_config.task_num_classes = args.task_num_classes
 
 		self.invalid_cls_logits = list(range(seen_classes, args.n_classes-1)) #unknown class indx will not be included in the invalid class range
+		self.seen_classes = seen_classes
 
 		if args.repo_name:
 			self.model =  DeformableDetrForObjectDetection.from_pretrained(args.repo_name,config=detr_config,
@@ -378,6 +379,8 @@ class local_trainer(pl.LightningModule):
 
 					outputs_without_aux = {k: v for k, v in outputs.items() if k not in ["auxiliary_outputs", "enc_outputs"]}
 					indices = self.model.matcher(outputs_without_aux, labels)
+					# F7: the paper builds prototypes from correctly classified objects only
+					pred_classes = outputs.logits[..., :self.seen_classes].argmax(dim=-1)
 
 					prototype_updates = {}  # {cls_label: [query_vectors]}
 					
@@ -388,7 +391,9 @@ class local_trainer(pl.LightningModule):
 						for pred_idx, target_idx in zip(pred_indices, target_indices):
 							if target_idx < len(current_labels):
 								cls_label = current_labels[target_idx].item()
-								if 0 <= cls_label < self.total_classes and cls_label >= self.PREV_INTRODUCED_CLS:
+								correct = pred_classes[batch_idx, pred_idx].item() == cls_label
+								if (0 <= cls_label < self.total_classes and cls_label >= self.PREV_INTRODUCED_CLS
+										and (correct or not self.args.proto_correct_only)):
 									matched_query = current_query_vectors[pred_idx]  # [d_model]
 									if cls_label not in prototype_updates:
 										prototype_updates[cls_label] = []
@@ -411,6 +416,8 @@ class local_trainer(pl.LightningModule):
 
 					outputs_without_aux = {k: v for k, v in outputs.items() if k not in ["auxiliary_outputs", "enc_outputs"]}
 					indices = self.model.matcher(outputs_without_aux, labels)
+					# F7: the paper builds prototypes from correctly classified objects only
+					pred_classes = outputs.logits[..., :self.seen_classes].argmax(dim=-1)
 					prototype_updates = {}  # {cls_label: [query_vectors]}
 
 					for batch_idx, (pred_indices, target_indices) in enumerate(indices):
@@ -420,7 +427,9 @@ class local_trainer(pl.LightningModule):
 						for pred_idx, target_idx in zip(pred_indices, target_indices):
 							if target_idx < len(current_labels):
 								cls_label = current_labels[target_idx].item()
-								if 0 <= cls_label < self.total_classes and cls_label >= self.PREV_INTRODUCED_CLS:
+								correct = pred_classes[batch_idx, pred_idx].item() == cls_label
+								if (0 <= cls_label < self.total_classes and cls_label >= self.PREV_INTRODUCED_CLS
+										and (correct or not self.args.proto_correct_only)):
 									matched_query = current_query_vectors[pred_idx]  # [d_model]
 									if cls_label not in prototype_updates:
 										prototype_updates[cls_label] = []
@@ -478,6 +487,17 @@ class local_trainer(pl.LightningModule):
 			self.print_prototype_space_stats(prefix=f"[Epoch {self.current_epoch}, Batch {batch_idx}] ")
 
 		return loss
+
+	def missing_prototypes(self):
+		"""Classes of the current task without any cached query (F7): PPG cannot verify them later."""
+		return [c for c in range(self.PREV_INTRODUCED_CLS, self.seen_classes) if self.class_cache_count[c] == 0]
+
+	def on_train_end(self):
+		missing = self.missing_prototypes()
+		if missing:
+			message = f'WARNING: task {self.task_id}: {len(missing)} classes have no prototype: {missing}'
+			print(message)
+			print(message, file=self.args.log_file)
 
 	def on_after_backward(self, *args):
 		# freeze gradients for the classifer weights that do not belong to current task

@@ -214,6 +214,8 @@ def get_args_parser():
     parser.add_argument('--pseudo_thresh_high', default=0.5, type=float, help='PPG tau_h (paper: 0.5)')
     parser.add_argument('--pseudo_thresh_low', default=0.2, type=float, help='PPG tau_l (paper: 0.2)')
     parser.add_argument('--prototype_sim_thresh', default=0.5, type=float, help='PPG theta_s (paper: 0.5)')
+    parser.add_argument('--proto_correct_only', default=1, type=int,
+                        help='F7: prototypes only from queries whose predicted class is the GT class')
     parser.add_argument('--shuffle', default=1, type=int,
                         help='F12: shuffle the training data every epoch')
     parser.add_argument('--require_kernel', default=0, type=int,
