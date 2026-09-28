@@ -203,6 +203,8 @@ def get_args_parser():
                         help='F3: weight of the directional decoupled loss L_DDL (paper: 0.15; 0 disables it)')
     parser.add_argument('--query_loss_grad', default=1, type=int,
                         help='F4: let the query loss L_Q back-propagate into query_tf')
+    parser.add_argument('--require_kernel', default=0, type=int,
+                        help='F11: fail if the CUDA kernel of deformable attention cannot be loaded')
 
     # Bounding box thresholds
     parser.add_argument('--bbox_thresh', default=0.3, type=float, 
@@ -218,6 +220,17 @@ def get_args_parser():
     
     return parser
 
+
+def check_kernel(args):
+    import models.modeling_deformable_detr as detr_module
+
+    if detr_module.MultiScaleDeformableAttention is not None:
+        print('Multi-scale deformable attention: CUDA kernel')
+    else:
+        message = f'Multi-scale deformable attention: PyTorch fallback ({detr_module.KERNEL_LOAD_ERROR})'
+        if args.require_kernel:
+            raise RuntimeError(message)
+        print(message)
 
 def setup_task_info(args):
     """Fill args.task_map, args.task_label2name and args.task_num_classes."""
@@ -244,6 +257,7 @@ def main(args):
     # random.seed(seed)
     #Trainer = pl.Trainer(args)
     seed_everything(seed, workers=True)
+    check_kernel(args)
     
     args.iou_types = ['bbox']
     out_dir_root = args.output_dir

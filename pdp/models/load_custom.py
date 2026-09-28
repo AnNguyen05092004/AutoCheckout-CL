@@ -19,8 +19,12 @@ from pathlib import Path
 
 def load_cuda_kernels():
     from torch.utils.cpp_extension import load
+    import transformers
 
-    root = Path(__file__).resolve().parent.parent.parent / "kernels" / "deformable_detr"
+    # F11: the original path (<parent of the repo>/kernels/deformable_detr) does not exist, so the
+    # kernel never loaded and every call silently fell back to the slow PyTorch implementation.
+    # The kernel sources ship inside the installed transformers package.
+    root = Path(transformers.__file__).resolve().parent / "kernels" / "deformable_detr"
     src_files = [
         root / filename
         for filename in [

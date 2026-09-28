@@ -54,6 +54,8 @@ from .load_custom import load_cuda_kernels
 logger = logging.get_logger(__name__)
 
 # Move this to not compile only when importing, this needs to happen later, like in __init__.
+# F11: KERNEL_LOAD_ERROR records why the kernel is unavailable, so callers can report or refuse it.
+KERNEL_LOAD_ERROR = None
 if is_torch_cuda_available() and is_ninja_available():
     logger.info("Loading custom CUDA kernels...")
     try:
@@ -61,8 +63,19 @@ if is_torch_cuda_available() and is_ninja_available():
     except Exception as e:
         logger.warning(f"Could not load the custom kernel for multi-scale deformable attention: {e}")
         MultiScaleDeformableAttention = None
+        KERNEL_LOAD_ERROR = repr(e)
 else:
     MultiScaleDeformableAttention = None
+    KERNEL_LOAD_ERROR = "CUDA or ninja not available"
+
+_kernel_fallback_logged = False
+
+
+def _log_kernel_fallback_once(error):
+    global _kernel_fallback_logged
+    if not _kernel_fallback_logged:
+        _kernel_fallback_logged = True
+        logger.warning(f"Multi-scale deformable attention falls back to the PyTorch implementation: {error!r}")
 
 if is_vision_available():
     from transformers.image_transforms import center_to_corners_format
@@ -706,8 +719,9 @@ class DeformableDetrMultiscaleDeformableAttention(nn.Module):
                     attention_weights,
                     self.im2col_step,
                 )
-            except Exception:
+            except Exception as error:
                 # PyTorch implementation
+                _log_kernel_fallback_once(error)
                 output = multi_scale_deformable_attention(value, spatial_shapes, sampling_locations, attention_weights)
         output = self.output_proj(output)
 
