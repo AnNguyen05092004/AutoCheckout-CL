@@ -43,7 +43,10 @@ def main_args(argv: list[str]) -> argparse.Namespace:
 # d_model and num_queries keep the PDP values (query_tf is hard-coded to 300 x 256); the rest shrinks.
 TINY_DETR = dict(use_pretrained_backbone=False, backbone="resnet18", encoder_layers=1, decoder_layers=2,
                  encoder_ffn_dim=64, decoder_ffn_dim=64)
-IMAGE_SIZE = 64
+# 96 px keeps the smallest feature level at 2x2. At 64 px it is 1x1, and with a batch of one image
+# the CPU GroupNorm backward of input_proj fails on the ambiguous memory format of a [1, C, 1, 1]
+# tensor ("Expected memory formats of X and dY are same"); real 800 px inputs never get there.
+IMAGE_SIZE = 96
 
 
 def use_tiny_detr(monkeypatch) -> None:
@@ -108,3 +111,84 @@ def make_batch(labels_per_image: list[list[int]], seed: int = 0) -> dict:
         "pixel_mask": torch.ones(batch_size, IMAGE_SIZE, IMAGE_SIZE, dtype=torch.int64),
         "labels": labels,
     }
+
+
+# --- a toy dataset in the layout of docs/formats.md, for end-to-end runs of main() -----------------
+def make_toy_dataset(root: Path, sizes=(3, 2), n_train=8, n_val=4, n_test=4, seed=0) -> dict:
+    """Tiny images with coloured boxes and the per-task JSON files main() reads.
+
+    Every image may contain objects of any class, but train/val task files keep only the labels of
+    their task (the class-incremental protocol); val_full/test_full keep every label.
+    """
+    import random
+
+    from PIL import Image, ImageDraw
+
+    rng = random.Random(seed)
+    num_labels = sum(sizes)
+    offsets = [sum(sizes[:i]) for i in range(len(sizes))]
+    image_dir, task_dir = root / "images", root / "tasks"
+    image_dir.mkdir(parents=True, exist_ok=True)
+    task_dir.mkdir(parents=True, exist_ok=True)
+
+    def make_split(name, count, first_id):
+        images, annotations = [], []
+        for image_id in range(first_id, first_id + count):
+            file_name = f"{name}_{image_id}.jpg"
+            image = Image.new("RGB", (IMAGE_SIZE, IMAGE_SIZE), (235, 235, 235))
+            draw = ImageDraw.Draw(image)
+            for _ in range(rng.randint(1, 3)):
+                label = rng.randrange(num_labels)
+                x, y = rng.randint(0, IMAGE_SIZE - 24), rng.randint(0, IMAGE_SIZE - 24)
+                w, h = rng.randint(10, 22), rng.randint(10, 22)
+                draw.rectangle([x, y, x + w, y + h], fill=(40 * label % 255, 90, 200 - 30 * label % 200))
+                annotations.append({"id": len(annotations) + 1 + 1000 * first_id, "image_id": image_id,
+                                    "category_id": label, "bbox": [x, y, w, h], "area": w * h, "iscrowd": 0})
+            image.save(image_dir / file_name)
+            images.append({"id": image_id, "file_name": file_name, "width": IMAGE_SIZE, "height": IMAGE_SIZE,
+                           "level": ["easy", "medium", "hard"][image_id % 3]})
+        return {"images": images, "annotations": annotations}
+
+    def restrict(coco, labels):
+        anns = [a for a in coco["annotations"] if a["category_id"] in labels]
+        keep = {a["image_id"] for a in anns}
+        return {"images": [i for i in coco["images"] if i["id"] in keep], "annotations": anns,
+                "categories": [{"id": c, "name": f"sku_{c + 1}"} for c in sorted(labels)]}
+
+    splits = {"train": make_split("train", n_train, 1), "val": make_split("val", n_val, 100),
+              "test": make_split("test", n_test, 200)}
+    for task_id, (offset, size) in enumerate(zip(offsets, sizes, strict=True), start=1):
+        labels = set(range(offset, offset + size))
+        for split in ("train", "val"):
+            (task_dir / f"{split}_task_{task_id}.json").write_text(json.dumps(restrict(splits[split], labels)))
+    for split in ("val", "test"):
+        (task_dir / f"{split}_full.json").write_text(json.dumps(restrict(splits[split], set(range(num_labels)))))
+    return {"images": image_dir, "tasks": task_dir}
+
+
+def small_processor():
+    """Image processor that keeps the toy images at their size (the default resizes to 800)."""
+    from models.image_processing_deformable_detr import DeformableDetrImageProcessor
+
+    return DeformableDetrImageProcessor(size={"shortest_edge": IMAGE_SIZE, "longest_edge": IMAGE_SIZE})
+
+
+def run_main(tmp_path: Path, monkeypatch, *extra: str, sizes=(3, 2)) -> argparse.Namespace:
+    """Run pdp main() end to end on the toy dataset with the tiny model, on CPU."""
+    import main as pdp_main
+
+    use_tiny_detr(monkeypatch)
+    monkeypatch.setattr(pdp_main, "DeformableDetrImageProcessor", lambda *a, **k: small_processor())
+    data = make_toy_dataset(tmp_path / "data", sizes=sizes)
+    config = write_task_config(tmp_path / "tasks.json", sizes=sizes, reserved=0)
+    args = main_args([
+        "--task_config", str(config), "--n_classes", str(sum(sizes) + 1), "--repo_name", "",
+        "--n_tasks", str(len(sizes)), "--use_prompts", "1", "--local_query", "1", "--lambda_query", "0.1",
+        "--num_prompts", "4", "--prompt_len", "2", "--freeze", "backbone,encoder,decoder",
+        "--new_params", "class_embed,prompts", "--accelerator", "cpu", "--n_gpus", "1", "--batch_size", "2",
+        "--num_workers", "0", "--epochs", "1", "--eval_epochs", "1",
+        "--train_img_dir", str(data["images"]), "--test_img_dir", str(data["images"]),
+        "--task_ann_dir", str(data["tasks"]), "--output_dir", str(tmp_path / "run"), *extra,
+    ])
+    pdp_main.main(args)
+    return args

@@ -512,29 +512,9 @@ class local_trainer(pl.LightningModule):
 	def on_train_epoch_end(self):
 		self.lr_scheduler.step()
 		
-		should_save = False
-		if self.current_epoch and self.current_epoch % self.args.save_epochs == 0:
-			should_save = True
-		
-		if self.is_last_epoch():
-			should_save = True
-		
-		if should_save:
-			print(f"\n[Performance] Saving model at epoch {self.current_epoch}...", file=getattr(self.args, 'log_file', None))
-			start_time = torch.cuda.Event(enable_timing=True) if torch.cuda.is_available() else None
-			end_time = torch.cuda.Event(enable_timing=True) if torch.cuda.is_available() else None
-			
-			if start_time:
-				start_time.record()
-			
-			self.save(self.current_epoch)
-			
-			if end_time:
-				end_time.record()
-				torch.cuda.synchronize()
-				elapsed_time = start_time.elapsed_time(end_time) / 1000.0  
-				print(f"[Performance] Model saving completed in {elapsed_time:.2f}s", file=getattr(self.args, 'log_file', None))
-		
+		# F8: no full checkpoint (0.5 GiB with optimizer state) every epoch any more; the task's
+		# final weights are written once by save_task_final().
+
 		is_last_epoch = self.is_last_epoch()
 		if is_last_epoch:
 			self.print_prototype_space_stats(prefix=f"[Last Epoch {self.current_epoch} End] ")
@@ -574,26 +554,23 @@ class local_trainer(pl.LightningModule):
 
 		return loss
 	
-	def save(self, epoch):
-		print('\n Saving at epoch ', epoch, file=self.args.log_file)
-		
-		if hasattr(self.args, 'verbose_save') and self.args.verbose_save:
+	def save_task_final(self, path):
+		"""Weights and prototype memory at the end of the task, without optimizer state (F8).
 
-			self.print_prototype_space_stats(prefix=f"[Save Epoch {epoch}] ")
-
+		This file initialises the next task and becomes its teacher. Written to a temporary file
+		first, then renamed, so an interruption never leaves a truncated file behind.
+		"""
 		save_dict = {
 			'model': self.model.state_dict(),
-			'optimizer': self.optimizer.state_dict(),
-			'lr_scheduler': self.lr_scheduler.state_dict(),
-			'epoch': epoch,
+			'task_id': self.task_id,
 			'class_query_cache': self.class_query_cache,
 			'class_prototypes': self.class_prototypes,
 			'class_cache_count': self.class_cache_count,
 		}
-		
-		save_path = os.path.join(self.args.output_dir, f'checkpoint{epoch:02}.pth')
-		torch.save(save_dict, save_path)
-		print(f'Model saved to {save_path}', file=self.args.log_file)
+		tmp_path = path + '.tmp'
+		torch.save(save_dict, tmp_path)
+		os.replace(tmp_path, path)
+		print(f'Model saved to {path}', file=self.args.log_file)
 	
 	def resume(self, load_path=''):
 		print('\n Resuming model for task ', self.task_id, ' from : ',load_path, file=self.args.log_file)

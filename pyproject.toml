@@ -19,7 +19,7 @@ markers = [
 ]
 
 [tool.ruff]
-line-length = 110
+line-length = 120
 target-version = "py310"
 # pdp/ is vendored upstream code: keep its original style, lint only our own code.
 extend-exclude = ["pdp"]

@@ -13,14 +13,12 @@ import pdb
 from torch.utils.data import DataLoader
 from datetime import timedelta
 
-import utils
 import pytorch_lightning as pl
 from datasets.coco_eval import CocoEvaluator
 from engine import local_trainer, Evaluator
 # from transformers import AutoImageProcessor
 from lightning.pytorch.loggers import CSVLogger
 from lightning.pytorch import seed_everything
-from pytorch_lightning.callbacks import ModelCheckpoint
 from datasets.coco_hug import CocoDetection, task_info_coco,task_info_voc,task_info_rpc, create_task_json 
 from models.image_processing_deformable_detr import DeformableDetrImageProcessor 
 
@@ -195,6 +193,11 @@ def get_args_parser():
                         help='Point to split training data for task setup')
     parser.add_argument('--task_config', default='', type=str,
                         help='Task config JSON (configs/tasks_*.json); replaces the hard-coded COCO task split')
+    parser.add_argument('--train_suffix', default='', type=str,
+                        help="Suffix of the training files, e.g. '_capped' reads train_task_<t>_capped.json")
+    parser.add_argument('--prev_ckpt', default='', type=str,
+                        help='F8: task_final.pth to start from when --start_task > 1 comes from another run')
+    parser.add_argument('--accelerator', default='gpu', type=str, help="Lightning accelerator ('gpu' or 'cpu')")
 
     # Fixes of the original code (IMPLEMENTATION_PLAN.md 6.3); 0 restores the original behaviour (pilot P1)
     parser.add_argument('--init_new_prompts', default=1, type=int,
@@ -269,183 +272,90 @@ def setup_task_info(args):
     #print(args.task_num_classes)
     args.task_label2name[args.n_classes-1] = "BG"
 
-def main(args):
+def task_dir(output_root, task_id):
+    return os.path.join(output_root, f'task_{task_id}')
 
-    # fix the seed for reproducibility
-    seed = args.seed
-    # torch.manual_seed(seed)
-    # np.random.seed(seed)
-    # random.seed(seed)
-    #Trainer = pl.Trainer(args)
-    seed_everything(seed, workers=True)
+def make_pl_trainer(args):
+    return pl.Trainer(devices=args.n_gpus, accelerator=args.accelerator, max_epochs=args.epochs,
+                      gradient_clip_val=0.1, accumulate_grad_batches=max(1, int(32/(args.n_gpus*args.batch_size))),
+                      check_val_every_n_epoch=args.eval_epochs, enable_checkpointing=False,
+                      log_every_n_steps=args.print_freq, num_sanity_val_steps=0,
+                      logger=CSVLogger(save_dir=args.output_dir, name="lightning_logs"))
+
+def run_task(args, task_id, output_root, processor):
+    """Train task `task_id` and write <output_root>/task_<t>/task_final.pth (F8)."""
+    args.output_dir = task_dir(output_root, task_id)
+    Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+    args.log_file = open(os.path.join(args.output_dir, 'train.log'), 'a')
+    print('Logging: args ', args, file=args.log_file)
+    args.task = str(task_id)
+
+    pyl_trainer = make_pl_trainer(args)
+
+    tr_ann = os.path.join(args.task_ann_dir, f'train_task_{task_id}{args.train_suffix}.json')
+    val_ann = os.path.join(args.task_ann_dir, f'val_task_{task_id}.json')
+    train_dataset = CocoDetection(img_folder=args.train_img_dir, ann_file=tr_ann, processor=processor)
+    val_dataset = CocoDetection(img_folder=args.test_img_dir, ann_file=val_ann, processor=processor)
+    train_dataloader = make_train_loader(train_dataset, args)
+    val_dataloader = DataLoader(val_dataset, collate_fn=val_dataset.collate_fn, batch_size=args.batch_size,
+                                num_workers=args.num_workers)
+
+    coco_evaluator = CocoEvaluator(val_dataset.coco, args.iou_types)
+    local_evaluator = Evaluator(processor=processor, test_dataset=val_dataset, test_dataloader=val_dataloader,
+                                coco_evaluator=coco_evaluator, args=args, task_label2name=args.task_label2name,
+                                task_name='cur')
+    trainer = local_trainer(train_loader=train_dataloader, val_loader=val_dataloader, test_dataset=val_dataset,
+                            args=args, local_evaluator=local_evaluator, task_id=task_id)
+
+    if args.use_prompts:
+        print('previous task : ', trainer.model.model.prompts.task_count, file=args.log_file)
+        trainer.model.model.prompts.set_task_id(task_id-1)
+        print('current task : ', trainer.model.model.prompts.task_count, file=args.log_file)
+
+    # F8: task t starts from the final weights of task t-1 (explicit --prev_ckpt, or the previous task
+    # of this run); task 1 starts from --repo_name. resume() also applies --freeze.
+    if task_id > 1:
+        prev_ckpt = args.prev_ckpt if task_id == args.start_task and args.prev_ckpt else \
+            os.path.join(task_dir(output_root, task_id-1), 'task_final.pth')
+        trainer.resume(prev_ckpt)
+    else:
+        trainer.resume()
+
+    # F5: teacher = frozen copy of the model after the previous task, taken before the new
+    # task's prompts are initialised.
+    if task_id > 1 and args.pseudo != 'none':
+        trainer.set_teacher()
+
+    # F2: must run after set_task_id() and after the previous weights are loaded (loading would
+    # otherwise overwrite the new slots with the zeros saved at the end of the previous task).
+    if args.use_prompts and args.init_new_prompts:
+        trainer.model.model.prompts.init_task_prompts()
+
+    pyl_trainer.fit(trainer, train_dataloader, val_dataloader)
+    trainer.save_task_final(os.path.join(args.output_dir, 'task_final.pth'))
+    args.log_file.close()
+
+def main(args):
+    if args.eval:
+        raise SystemExit('--eval is not supported any more: predictions are written after each task (F9)')
+    seed_everything(args.seed, workers=True)
     check_kernel(args)
-    
     args.iou_types = ['bbox']
-    out_dir_root = args.output_dir
-    
     setup_task_info(args)
 
     if args.repo_name:
         processor = DeformableDetrImageProcessor.from_pretrained(args.repo_name)
     else:
         processor = DeformableDetrImageProcessor()
-    #print('set up processor ...')
 
-    checkpoint_callback = ModelCheckpoint(dirpath=args.output_dir, filename='{epoch}')
-    logger = CSVLogger(save_dir=args.output_dir, name="lightning_logs")
-
+    output_root = args.output_dir
     for task_id in range(args.start_task, args.n_tasks+1):
-        args.output_dir = os.path.join(out_dir_root, 'Task_'+str(task_id))
-        Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-        args.log_file = open(out_dir_root+'/Task_'+str(task_id)+'_log.out', 'a')
-        print('Logging: args ', args, file=args.log_file)
-
-        if task_id == 1:
-            args.epochs =8
-        else:
-            args.epochs = 8
-
-        #args.switch = True
-        args.task = str(task_id)
-
-        #### automatic training schedule
-        pyl_trainer = pl.Trainer(devices=list(range(args.n_gpus)), accelerator="gpu", max_epochs=args.epochs, 
-                    gradient_clip_val=0.1, accumulate_grad_batches=int(32/(args.n_gpus*args.batch_size)), \
-                    check_val_every_n_epoch=args.eval_epochs, callbacks=[checkpoint_callback],
-                    log_every_n_steps=args.print_freq, logger=logger, num_sanity_val_steps=0)
-        
-        tr_ann = os.path.join(args.task_ann_dir,'train_task_'+str(task_id)+'.json')
-        tst_ann = os.path.join(args.task_ann_dir,'test_task_'+str(task_id)+'.json')
-
-        train_dataset = CocoDetection(img_folder=args.train_img_dir, 
-                            ann_file=tr_ann, processor=processor)
-
-        test_dataset = CocoDetection(img_folder=args.test_img_dir, 
-                                    ann_file=tst_ann, processor=processor)
-        
-        train_dataloader = make_train_loader(train_dataset, args)
-        
-        test_dataloader = DataLoader(test_dataset, collate_fn=test_dataset.collate_fn, batch_size=args.batch_size,
-                                 num_workers=args.num_workers)
-        
-        coco_evaluator = CocoEvaluator(test_dataset.coco, args.iou_types)
-        local_evaluator = Evaluator(processor=processor, test_dataset=test_dataset,test_dataloader=test_dataloader,
-                                    coco_evaluator=coco_evaluator,args=args,task_label2name=args.task_label2name, task_name='cur')
-        
-        trainer = local_trainer(train_loader=train_dataloader,val_loader=test_dataloader,
-                                      test_dataset=test_dataset,args=args,local_evaluator=local_evaluator,task_id=task_id)
-        
-        if args.use_prompts:
-            print ('previous task : ', trainer.model.model.prompts.task_count, file=args.log_file)
-            trainer.model.model.prompts.set_task_id(task_id-1)
-            print ('current task : ', trainer.model.model.prompts.task_count, file=args.log_file)
-
-        if task_id>1:
-            if not args.eval:
-                if args.resume:
-                    prev_task = args.checkpoint_dir.replace('Task_1','Task_'+str(task_id-1))
-                    args.resume=0
-                else:
-                    prev_task = args.output_dir.replace('Task_'+str(task_id),'Task_'+str(task_id-1))
-            else:
-                prev_task = args.checkpoint_dir.replace('Task_1','Task_'+str(task_id))
-            
-            if task_id == args.start_task:
-                trainer.resume(os.path.join(prev_task,args.checkpoint_next))
-            else:
-                trainer.resume(os.path.join(prev_task,args.checkpoint_next))
-        else:
-            if not args.eval:
-                if args.repo_name:
-                    trainer.resume()
-                args.resume=0
-            else:
-                trainer.resume(os.path.join(args.checkpoint_dir,args.checkpoint_base))
-
-        # F5: teacher = frozen copy of the model after the previous task, taken before the new
-        # task's prompts are initialised.
-        if task_id > 1 and not args.eval and args.pseudo != 'none':
-            trainer.set_teacher()
-
-        # F2: must run after set_task_id() and after the previous weights are loaded (loading would
-        # otherwise overwrite the new slots with the zeros saved at the end of the previous task).
-        if args.use_prompts and args.init_new_prompts and not args.eval:
-            trainer.model.model.prompts.init_task_prompts()
-
-        ####################### Training/Evaluating on Current classes ################################################
-        if args.eval:
-            trainer.evaluator.local_eval = 1
-            pyl_trainer.validate(trainer,test_dataloader)
-        else:
-            pyl_trainer.fit(trainer, train_dataloader, test_dataloader)
-        #############################################################################################################
-        
-        if task_id>1:
-
-            ####################### Evaluating on previous classes ###################################################
-            prev_task_ids = ''.join(str(i) for i in range(1,task_id))
-            tst_ann_prev = os.path.join(args.task_ann_dir,'test_task_'+str(prev_task_ids)+'.json')
-            test_dataset_prev = CocoDetection(img_folder=args.test_img_dir, 
-                                        ann_file=tst_ann_prev, processor=processor)
-            test_dataloader_prev = DataLoader(test_dataset_prev, collate_fn=test_dataset_prev.collate_fn, batch_size=args.batch_size,
-                                    num_workers=args.num_workers)
-            args.task = prev_task_ids
-        
-            if len(args.task) == 1:
-                args.task = '01'
-            coco_evaluator = CocoEvaluator(test_dataset_prev.coco, args.iou_types)
-            local_evaluator = Evaluator(processor=processor, test_dataset=test_dataset_prev,test_dataloader=test_dataloader_prev,
-                                        coco_evaluator=coco_evaluator,args=args,task_label2name=args.task_label2name,
-                                        local_trainer=trainer, local_eval=1, task_name='prev')
-            PREV_INTRODUCED_CLS = args.task_map[task_id][1]
-            CUR_INTRODUCED_CLS = args.task_map[task_id][2]
-
-            seen_classes = PREV_INTRODUCED_CLS + CUR_INTRODUCED_CLS
-            invalid_cls_logits = list(range(seen_classes, args.n_classes-1))
-            local_evaluator.invalid_cls_logits = invalid_cls_logits
-
-            trainer.evaluator = local_evaluator
-            trainer.evaluator.model = trainer.model
-            trainer.eval_mode = True
-            pyl_trainer.validate(trainer,test_dataloader_prev)
-            ##########################################################################################################
-
-            ####################### Evaluating on all known classes ###################################################
-            known_task_ids = ''.join(str(i) for i in range(1,task_id+1))
-            tst_ann_known = os.path.join(args.task_ann_dir,'test_task_'+str(known_task_ids)+'.json')
-            test_dataset_known = CocoDetection(img_folder=args.test_img_dir, 
-                                        ann_file=tst_ann_known, processor=processor)
-            test_dataloader_known = DataLoader(test_dataset_known, collate_fn=test_dataset_known.collate_fn, batch_size=args.batch_size,
-                                    num_workers=args.num_workers)
-            
-            args.task = known_task_ids
-            coco_evaluator = CocoEvaluator(test_dataset_known.coco, args.iou_types)
-            local_evaluator = Evaluator(processor=processor, test_dataset=test_dataset_known,test_dataloader=test_dataloader_known,
-                                        coco_evaluator=coco_evaluator,args=args,task_label2name=args.task_label2name,
-                                        local_trainer=trainer, local_eval=1, task_name='all')
-            PREV_INTRODUCED_CLS = args.task_map[task_id][1]
-            CUR_INTRODUCED_CLS = args.task_map[task_id][2]
-
-            seen_classes = PREV_INTRODUCED_CLS + CUR_INTRODUCED_CLS
-            invalid_cls_logits = list(range(seen_classes, args.n_classes-1))
-            local_evaluator.invalid_cls_logits = invalid_cls_logits
-
-            trainer.evaluator = local_evaluator
-            trainer.evaluator.model = trainer.model
-            trainer.eval_mode = True
-            pyl_trainer.validate(trainer,test_dataloader_known)
-            ##########################################################################################################
-
-        args.log_file.close()
+        run_task(args, task_id, output_root, processor)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Deformable DETR training and evaluation script', parents=[get_args_parser()])
     args = parser.parse_args()
 
-    out_dir = args.output_dir
-
     if args.output_dir:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
     main(args)
-
-    utils.print_final(out_dir=out_dir, start_task=args.start_task, n_tasks=args.n_tasks)
