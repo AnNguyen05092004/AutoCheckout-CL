@@ -23,8 +23,10 @@ needed for these metrics.
 from __future__ import annotations
 
 import contextlib
+import copy
 import io
 import re
+import warnings
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any
@@ -100,24 +102,66 @@ def _load_dt(coco_gt: COCO, results: list[dict[str, Any]]) -> COCO:
         return coco_gt.loadRes(results)
 
 
+_NAN_STATS = {"AP": float("nan"), "AP50": float("nan"), "AP75": float("nan")}
+
+
+class EvaluatedPairs:
+    """``COCOeval.evaluate()`` run once; AP of any subset of categories and images is then
+    accumulated from the stored per-(category, image) results.
+
+    Exact: pycocotools evaluates every (category, image) pair independently (matching, maxDets
+    truncation), so a subset's AP equals running COCOeval on that subset alone. Only the area range
+    'all' is evaluated (4x fewer pairs), which is the only range reported. ``COCOeval.accumulate(p)``
+    cannot be used for subsets: it indexes the stored results with positions in ``p``.
+    """
+
+    def __init__(self, coco_gt: COCO, coco_dt: COCO, cat_ids: Sequence[int], img_ids: Sequence[int]) -> None:
+        self.cat_ids, self.img_ids = list(cat_ids), list(img_ids)
+        self.coco_eval = None
+        if not self.cat_ids or not self.img_ids:
+            return
+        with _quiet():
+            coco_eval = COCOeval(coco_gt, coco_dt, iouType="bbox")
+            coco_eval.params.catIds = self.cat_ids
+            coco_eval.params.imgIds = self.img_ids
+            coco_eval.params.areaRng = coco_eval.params.areaRng[:1]
+            coco_eval.params.areaRngLbl = coco_eval.params.areaRngLbl[:1]
+            coco_eval.evaluate()
+        self.coco_eval = coco_eval
+        # evaluate() stores its own (sorted) id lists; index the results by them
+        self._cat_pos = {c: i for i, c in enumerate(coco_eval._paramsEval.catIds)}
+        self._img_pos = {m: i for i, m in enumerate(coco_eval._paramsEval.imgIds)}
+
+    def stats(self, cat_ids: Iterable[int], img_ids: Iterable[int]) -> dict[str, float]:
+        """AP (0.50:0.95), AP50, AP75 on a subset; NaN when there is nothing to evaluate."""
+        cat_ids = [c for c in cat_ids if c in getattr(self, "_cat_pos", {})]
+        img_ids = [m for m in img_ids if m in getattr(self, "_img_pos", {})]
+        if self.coco_eval is None or not cat_ids or not img_ids:
+            return {**_NAN_STATS, "n_images": len(img_ids)}
+        full = self.coco_eval
+        n_img = len(full._paramsEval.imgIds)
+        subset = copy.copy(full)
+        subset.evalImgs = [full.evalImgs[self._cat_pos[c] * n_img + self._img_pos[m]]
+                           for c in cat_ids for m in img_ids]
+        subset._paramsEval = copy.deepcopy(full._paramsEval)
+        subset._paramsEval.catIds, subset._paramsEval.imgIds = cat_ids, img_ids
+        subset.params = copy.deepcopy(full.params)
+        subset.params.catIds, subset.params.imgIds = cat_ids, img_ids
+        with _quiet(), warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)  # empty small/medium/large ranges
+            subset.accumulate()
+            subset.summarize()
+        stats = subset.stats
+        return {"AP": float(stats[0]), "AP50": float(stats[1]), "AP75": float(stats[2]), "n_images": len(img_ids)}
+
+
 def ap_stats(
     coco_gt: COCO, coco_dt: COCO, cat_ids: Sequence[int], img_ids: Sequence[int]
 ) -> dict[str, float]:
     """AP (0.50:0.95), AP50, AP75 restricted to ``cat_ids``/``img_ids``. NaN when there is
     nothing to evaluate (empty group), instead of relying on pycocotools' edge-case behaviour.
     """
-    cat_ids, img_ids = list(cat_ids), list(img_ids)
-    if not cat_ids or not img_ids:
-        return {"AP": float("nan"), "AP50": float("nan"), "AP75": float("nan"), "n_images": len(img_ids)}
-    with _quiet():
-        coco_eval = COCOeval(coco_gt, coco_dt, iouType="bbox")
-        coco_eval.params.catIds = cat_ids
-        coco_eval.params.imgIds = img_ids
-        coco_eval.evaluate()
-        coco_eval.accumulate()
-        coco_eval.summarize()
-    stats = coco_eval.stats
-    return {"AP": float(stats[0]), "AP50": float(stats[1]), "AP75": float(stats[2]), "n_images": len(img_ids)}
+    return EvaluatedPairs(coco_gt, coco_dt, cat_ids, img_ids).stats(cat_ids, img_ids)
 
 
 def group_ap(coco_gt: COCO, preds: Predictions, labels: Sequence[int]) -> dict[str, float]:
@@ -131,25 +175,16 @@ def group_ap(coco_gt: COCO, preds: Predictions, labels: Sequence[int]) -> dict[s
 def m1_stage(coco_gt: COCO, preds: Predictions, cfg: TaskConfig, stage: int) -> dict[str, Any]:
     """mAP@C/P/A and the per-task-group AP50 row of the accuracy matrix, at ``stage``."""
     coco_dt = _load_dt(coco_gt, preds.to_coco_results())
-    task = cfg.task(stage)
+    all_labels = list(range(cfg.seen_classes(stage)))
+    evaluated = EvaluatedPairs(coco_gt, coco_dt, all_labels, images_with_labels(coco_gt, all_labels))
 
-    map_c = ap_stats(coco_gt, coco_dt, list(task.labels), images_with_labels(coco_gt, task.labels))
+    def stats(labels: Sequence[int]) -> dict[str, float]:
+        return evaluated.stats(list(labels), images_with_labels(coco_gt, labels))
 
-    map_p = None
-    if stage >= 2:
-        prev_labels = range(cfg.seen_classes(stage - 1))
-        map_p = ap_stats(coco_gt, coco_dt, list(prev_labels), images_with_labels(coco_gt, prev_labels))
-
-    all_labels = range(cfg.seen_classes(stage))
-    map_a = ap_stats(coco_gt, coco_dt, list(all_labels), images_with_labels(coco_gt, all_labels))
-
-    matrix_row = {}
-    for g in range(1, stage + 1):
-        group_labels = cfg.task(g).labels
-        stats = ap_stats(coco_gt, coco_dt, list(group_labels), images_with_labels(coco_gt, group_labels))
-        matrix_row[g] = stats["AP50"]
-
-    return {"mAP_C": map_c, "mAP_P": map_p, "mAP_A": map_a, "matrix_row": matrix_row}
+    map_p = stats(range(cfg.seen_classes(stage - 1))) if stage >= 2 else None
+    matrix_row = {g: stats(cfg.task(g).labels)["AP50"] for g in range(1, stage + 1)}
+    return {"mAP_C": stats(cfg.task(stage).labels), "mAP_P": map_p, "mAP_A": stats(all_labels),
+            "matrix_row": matrix_row}
 
 
 def m2_stage(coco_gt: COCO, preds: Predictions, seen_classes: int) -> dict[str, Any]:
@@ -160,12 +195,13 @@ def m2_stage(coco_gt: COCO, preds: Predictions, seen_classes: int) -> dict[str, 
     filtered = filter_predictions_overlapping_unlearned(preds, coco_gt, seen_classes)
     coco_dt = _load_dt(coco_gt, filtered.to_coco_results())
     all_images = coco_gt.getImgIds()
+    evaluated = EvaluatedPairs(coco_gt, coco_dt, learned, all_images)
 
-    overall = ap_stats(coco_gt, coco_dt, learned, all_images)
+    overall = evaluated.stats(learned, all_images)
     by_level: dict[str, dict[str, float]] = {}
     for level in ("easy", "medium", "hard"):
         level_images = [img_id for img_id in all_images if coco_gt.imgs[img_id].get("level") == level]
-        by_level[level] = ap_stats(coco_gt, coco_dt, learned, level_images)
+        by_level[level] = evaluated.stats(learned, level_images)
     return {"overall": overall, "by_level": by_level}
 
 

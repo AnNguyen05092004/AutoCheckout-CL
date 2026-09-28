@@ -238,3 +238,47 @@ def test_check_stage_meta_cross_checks_task_config():
         check_stage_meta({"seen_classes": 3}, cfg, 2)
     with pytest.raises(ValueError, match="task_id"):
         check_stage_meta({"task_id": 3}, cfg, 2)
+
+
+def test_evaluated_pairs_subsets_equal_direct_cocoeval_on_random_data():
+    """Evaluate-once-then-subset must give exactly what COCOeval gives on each subset alone."""
+    import contextlib
+    import io
+
+    import numpy as np
+    from pycocotools.cocoeval import COCOeval
+
+    from autocheckout.cl_metrics import EvaluatedPairs, _load_dt, load_coco
+    from autocheckout.predictions import Predictions
+
+    rng = np.random.default_rng(1)
+    images, anns, rows = [], [], {k: [] for k in ("image_id", "query", "label", "score", "boxes")}
+    for i in range(1, 121):
+        images.append({"id": i, "file_name": f"{i}.jpg", "width": 800, "height": 800})
+        n = int(rng.integers(1, 8))
+        xy, wh, labels = rng.uniform(0, 600, (n, 2)), rng.uniform(20, 180, (n, 2)), rng.integers(0, 12, n)
+        for j in range(n):
+            anns.append({"id": len(anns) + 1, "image_id": i, "category_id": int(labels[j]),
+                         "bbox": [*xy[j], *wh[j]], "area": float(wh[j].prod()), "iscrowd": 0})
+        k = 30
+        src = rng.integers(0, n, k)
+        boxes = np.concatenate([xy[src] + rng.normal(0, 8, (k, 2)), xy[src] + wh[src] + rng.normal(0, 8, (k, 2))], 1)
+        rows["image_id"].append(np.full(k, i))
+        rows["query"].append(np.arange(k))
+        rows["label"].append(np.where(rng.random(k) < 0.6, labels[src], rng.integers(0, 12, k)))
+        rows["score"].append(rng.random(k))
+        rows["boxes"].append(boxes)
+    coco_gt = load_coco({"images": images, "annotations": anns, "categories": [{"id": c} for c in range(12)]})
+    coco_dt = _load_dt(coco_gt, Predictions(**{k: np.concatenate(v) for k, v in rows.items()}).to_coco_results())
+    evaluated = EvaluatedPairs(coco_gt, coco_dt, range(12), range(1, 121))
+
+    for cats, imgs in [(range(12), range(1, 121)), ([0, 3, 7], range(1, 121)), ([5, 2], range(40, 101)),
+                       ([11], [3, 9, 27, 81])]:
+        with contextlib.redirect_stdout(io.StringIO()):
+            direct = COCOeval(coco_gt, coco_dt, iouType="bbox")
+            direct.params.catIds, direct.params.imgIds = list(cats), list(imgs)
+            direct.evaluate()
+            direct.accumulate()
+            direct.summarize()
+        ours = evaluated.stats(list(cats), list(imgs))
+        assert [ours["AP"], ours["AP50"], ours["AP75"]] == [float(x) for x in direct.stats[:3]]
