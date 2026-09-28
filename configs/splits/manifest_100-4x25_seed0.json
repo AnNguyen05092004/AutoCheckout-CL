@@ -1,0 +1,152 @@
+{
+ "task_config": {
+  "name": "100-4x25_seed0",
+  "path": "configs/tasks_100-4x25_seed0.json",
+  "md5": "42c9ca3786e2ae0962347579d45c7f44"
+ },
+ "train_sources": {
+  "real": {
+   "path": "/data/rpc/splits/train.json",
+   "md5": "03995d90842fa5f71c783fa2c9bc88d9"
+  }
+ },
+ "val": {
+  "path": "/data/rpc/splits/val.json",
+  "md5": "afb20149bfc0ba0237af713395b90f33"
+ },
+ "test": {
+  "path": "/data/rpc/splits/test.json",
+  "md5": "29bb8163739712b679df84471bb28fa3"
+ },
+ "tasks": [
+  1,
+  2,
+  3,
+  4,
+  5
+ ],
+ "cap": 6000,
+ "seed": 0,
+ "files": {
+  "train_task_1.json": {
+   "images": 21752,
+   "objects": 138280,
+   "md5": "83a5a54857893d5d89d1fe1f46335c5d"
+  },
+  "train_task_1_capped.json": {
+   "images": 6000,
+   "objects": 38059,
+   "md5": "eabad5a24713d77447ada6a2868e76f7"
+  },
+  "train_task_1_gt_full.json": {
+   "images": 21752,
+   "objects": 270321,
+   "md5": "67803288972423063c48ed1981e955df"
+  },
+  "val_task_1.json": {
+   "images": 1464,
+   "objects": 9161,
+   "md5": "f8e36ab7b2af66c7b71782e60eddcda4"
+  },
+  "train_task_2.json": {
+   "images": 12534,
+   "objects": 34197,
+   "md5": "403d646250eb3cfaf0c7a597d90ff283"
+  },
+  "train_task_2_capped.json": {
+   "images": 6000,
+   "objects": 16365,
+   "md5": "90961b58a8936262f9adae1ec59d04d4"
+  },
+  "train_task_2_gt_full.json": {
+   "images": 12534,
+   "objects": 168030,
+   "md5": "6a3e591464681395c5b348c0f9f16441"
+  },
+  "val_task_2.json": {
+   "images": 798,
+   "objects": 2262,
+   "md5": "790fc3e8f449786347f361f4788dbb1b"
+  },
+  "train_task_3.json": {
+   "images": 12129,
+   "objects": 32320,
+   "md5": "88162163f458eebb27f6ac13161a3df8"
+  },
+  "train_task_3_capped.json": {
+   "images": 6000,
+   "objects": 15963,
+   "md5": "1f4903d46d360a90612bb2a2146fb74d"
+  },
+  "train_task_3_gt_full.json": {
+   "images": 12129,
+   "objects": 161088,
+   "md5": "782a5c1aadd8ed997e33c6e8b644a286"
+  },
+  "val_task_3.json": {
+   "images": 862,
+   "objects": 2164,
+   "md5": "6d950371db5e461b741149196bc06397"
+  },
+  "train_task_4.json": {
+   "images": 11850,
+   "objects": 32859,
+   "md5": "cff19bf2ee4dc30a226c9af209579629"
+  },
+  "train_task_4_capped.json": {
+   "images": 6000,
+   "objects": 16533,
+   "md5": "aa5abb91063af0d9f8e21874f1028182"
+  },
+  "train_task_4_gt_full.json": {
+   "images": 11850,
+   "objects": 157141,
+   "md5": "390d5a98ac9e2ab8272f3474883c10eb"
+  },
+  "val_task_4.json": {
+   "images": 764,
+   "objects": 2164,
+   "md5": "2477c8d710e63c942797246e37f10072"
+  },
+  "train_task_5.json": {
+   "images": 13377,
+   "objects": 38435,
+   "md5": "86966b03bcd527bf50c152e8ed955143"
+  },
+  "train_task_5_capped.json": {
+   "images": 6000,
+   "objects": 17208,
+   "md5": "a29723d0293d4e74d39b3e0b8f307ea2"
+  },
+  "train_task_5_gt_full.json": {
+   "images": 13377,
+   "objects": 178079,
+   "md5": "86ab4a48701edddd18d207ca3e3963f1"
+  },
+  "val_task_5.json": {
+   "images": 898,
+   "objects": 2627,
+   "md5": "2d43b2c5bafa2d7e4eecf1959cc5d868"
+  },
+  "train_joint.json": {
+   "images": 22494,
+   "objects": 276091,
+   "md5": "dbc18338101ef6b4b74ec365c5b9e631"
+  },
+  "train_joint_capped.json": {
+   "images": 17669,
+   "objects": 224003,
+   "md5": "79ff9b9d48083ea9b4b18d3bbe2801e3"
+  },
+  "val_full.json": {
+   "images": 1503,
+   "objects": 18378,
+   "md5": "64c1b15de8838d5f48fd557003a7b37a"
+  },
+  "test_full.json": {
+   "images": 6003,
+   "objects": 73466,
+   "md5": "8a508281e591baebff547422be7899a3"
+  }
+ }
+}
