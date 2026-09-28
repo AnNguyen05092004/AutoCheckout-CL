@@ -16,6 +16,7 @@ from datetime import timedelta
 import pytorch_lightning as pl
 from datasets.coco_eval import CocoEvaluator
 from engine import local_trainer, Evaluator
+from inference import write_predictions
 # from transformers import AutoImageProcessor
 from lightning.pytorch.loggers import CSVLogger
 from lightning.pytorch import seed_everything
@@ -198,6 +199,8 @@ def get_args_parser():
     parser.add_argument('--prev_ckpt', default='', type=str,
                         help='F8: task_final.pth to start from when --start_task > 1 comes from another run')
     parser.add_argument('--accelerator', default='gpu', type=str, help="Lightning accelerator ('gpu' or 'cpu')")
+    parser.add_argument('--predict_only', default=0, type=int,
+                        help='F9/V1: skip training, load task_<t>/task_final.pth and rewrite pred_{val,test}.npz')
 
     # Fixes of the original code (IMPLEMENTATION_PLAN.md 6.3); 0 restores the original behaviour (pilot P1)
     parser.add_argument('--init_new_prompts', default=1, type=int,
@@ -282,23 +285,37 @@ def make_pl_trainer(args):
                       log_every_n_steps=args.print_freq, num_sanity_val_steps=0,
                       logger=CSVLogger(save_dir=args.output_dir, name="lightning_logs"))
 
+def write_task_predictions(args, trainer, task_id, processor):
+    """F9/V1: predictions of the task's final model on the full val and test files (pred_<split>.npz)."""
+    device = torch.device('cuda' if args.accelerator == 'gpu' else 'cpu')
+    trainer.model.to(device)
+    for split in ('val', 'test'):
+        write_predictions(trainer.model, args, ann_file=os.path.join(args.task_ann_dir, f'{split}_full.json'),
+                          out_file=os.path.join(args.output_dir, f'pred_{split}.npz'), task_id=task_id,
+                          seen_classes=trainer.seen_classes, split=split, processor=processor, device=device)
+
 def run_task(args, task_id, output_root, processor):
-    """Train task `task_id` and write <output_root>/task_<t>/task_final.pth (F8)."""
+    """Train task `task_id` (F8), then write its predictions (F9).
+
+    Writes <output_root>/task_<t>/task_final.pth and pred_{val,test}.npz. With --predict_only 1 the
+    task is not trained: task_final.pth is loaded and only the predictions are (re)written.
+    """
     args.output_dir = task_dir(output_root, task_id)
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
     args.log_file = open(os.path.join(args.output_dir, 'train.log'), 'a')
     print('Logging: args ', args, file=args.log_file)
     args.task = str(task_id)
+    final_path = os.path.join(args.output_dir, 'task_final.pth')
 
-    pyl_trainer = make_pl_trainer(args)
-
-    tr_ann = os.path.join(args.task_ann_dir, f'train_task_{task_id}{args.train_suffix}.json')
     val_ann = os.path.join(args.task_ann_dir, f'val_task_{task_id}.json')
-    train_dataset = CocoDetection(img_folder=args.train_img_dir, ann_file=tr_ann, processor=processor)
     val_dataset = CocoDetection(img_folder=args.test_img_dir, ann_file=val_ann, processor=processor)
-    train_dataloader = make_train_loader(train_dataset, args)
     val_dataloader = DataLoader(val_dataset, collate_fn=val_dataset.collate_fn, batch_size=args.batch_size,
                                 num_workers=args.num_workers)
+    train_dataloader = None
+    if not args.predict_only:
+        tr_ann = os.path.join(args.task_ann_dir, f'train_task_{task_id}{args.train_suffix}.json')
+        train_dataset = CocoDetection(img_folder=args.train_img_dir, ann_file=tr_ann, processor=processor)
+        train_dataloader = make_train_loader(train_dataset, args)
 
     coco_evaluator = CocoEvaluator(val_dataset.coco, args.iou_types)
     local_evaluator = Evaluator(processor=processor, test_dataset=val_dataset, test_dataloader=val_dataloader,
@@ -312,32 +329,37 @@ def run_task(args, task_id, output_root, processor):
         trainer.model.model.prompts.set_task_id(task_id-1)
         print('current task : ', trainer.model.model.prompts.task_count, file=args.log_file)
 
-    # F8: task t starts from the final weights of task t-1 (explicit --prev_ckpt, or the previous task
-    # of this run); task 1 starts from --repo_name. resume() also applies --freeze.
-    if task_id > 1:
-        prev_ckpt = args.prev_ckpt if task_id == args.start_task and args.prev_ckpt else \
-            os.path.join(task_dir(output_root, task_id-1), 'task_final.pth')
-        trainer.resume(prev_ckpt)
+    if args.predict_only:
+        trainer.resume(final_path)
     else:
-        trainer.resume()
+        # F8: task t starts from the final weights of task t-1 (explicit --prev_ckpt, or the previous
+        # task of this run); task 1 starts from --repo_name. resume() also applies --freeze.
+        if task_id > 1:
+            prev_ckpt = args.prev_ckpt if task_id == args.start_task and args.prev_ckpt else \
+                os.path.join(task_dir(output_root, task_id-1), 'task_final.pth')
+            trainer.resume(prev_ckpt)
+        else:
+            trainer.resume()
 
-    # F5: teacher = frozen copy of the model after the previous task, taken before the new
-    # task's prompts are initialised.
-    if task_id > 1 and args.pseudo != 'none':
-        trainer.set_teacher()
+        # F5: teacher = frozen copy of the model after the previous task, taken before the new
+        # task's prompts are initialised.
+        if task_id > 1 and args.pseudo != 'none':
+            trainer.set_teacher()
 
-    # F2: must run after set_task_id() and after the previous weights are loaded (loading would
-    # otherwise overwrite the new slots with the zeros saved at the end of the previous task).
-    if args.use_prompts and args.init_new_prompts:
-        trainer.model.model.prompts.init_task_prompts()
+        # F2: must run after set_task_id() and after the previous weights are loaded (loading would
+        # otherwise overwrite the new slots with the zeros saved at the end of the previous task).
+        if args.use_prompts and args.init_new_prompts:
+            trainer.model.model.prompts.init_task_prompts()
 
-    pyl_trainer.fit(trainer, train_dataloader, val_dataloader)
-    trainer.save_task_final(os.path.join(args.output_dir, 'task_final.pth'))
+        make_pl_trainer(args).fit(trainer, train_dataloader, val_dataloader)
+        trainer.save_task_final(final_path)
+
+    write_task_predictions(args, trainer, task_id, processor)
     args.log_file.close()
 
 def main(args):
     if args.eval:
-        raise SystemExit('--eval is not supported any more: predictions are written after each task (F9)')
+        raise SystemExit('--eval is replaced by --predict_only 1 (predictions are written after each task, F9)')
     seed_everything(args.seed, workers=True)
     check_kernel(args)
     args.iou_types = ['bbox']

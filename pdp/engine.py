@@ -20,6 +20,7 @@ from models.image_processing_deformable_detr import DeformableDetrImageProcessor
 from models.configuration_deformable_detr import DeformableDetrConfig
 from models.modeling_deformable_detr import DeformableDetrForObjectDetection
 from ppg import prototype_matrix, select_candidates, select_pseudo_labels
+from inference import predict_batch
 
 class local_trainer(pl.LightningModule):
 	def __init__(self, train_loader, val_loader, test_dataset, args, local_evaluator, task_id, eval_mode=False):
@@ -535,8 +536,15 @@ class local_trainer(pl.LightningModule):
 			else:
 				self.coco_evaluator  = self.evaluator.coco_evaluator
 
-		loss, loss_dict, res = self.common_step(batch, batch_idx, return_outputs=True)
-		self.coco_evaluator.update(res)
+		# F9: validate the way the model is evaluated (two passes, learned classes only). The original
+		# went through common_step, i.e. ran the teacher and added pseudo-labels to the validation targets.
+		targets = batch['labels']
+		sizes = torch.stack([t['orig_size'] for t in targets]).to(self.device)
+		results = predict_batch(self.model, batch['pixel_values'].to(self.device), batch['pixel_mask'].to(self.device),
+								sizes, use_prompts=bool(self.args.use_prompts), local_query=bool(self.args.local_query),
+								seen_classes=self.seen_classes)
+		res = {t['image_id'].item(): r for t, r in zip(targets, results)}
+		self.coco_evaluator.update(self.evaluator.prepare_for_coco_detection(res))
 
 		if batch_idx == self.trainer.num_val_batches[0]-1:
 			self.coco_evaluator.synchronize_between_processes()
@@ -551,8 +559,6 @@ class local_trainer(pl.LightningModule):
 					image_ids = self.evaluator.test_dataset.coco.getImgIds()
 					for id in image_ids[0:self.args.num_imgs_viz]:
 						self.evaluator.vizualize(id=id)
-
-		return loss
 	
 	def save_task_final(self, path):
 		"""Weights and prototype memory at the end of the task, without optimizer state (F8).
