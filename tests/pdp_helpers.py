@@ -162,6 +162,11 @@ def make_toy_dataset(root: Path, sizes=(3, 2), n_train=8, n_val=4, n_test=4, see
         labels = set(range(offset, offset + size))
         for split in ("train", "val"):
             (task_dir / f"{split}_task_{task_id}.json").write_text(json.dumps(restrict(splits[split], labels)))
+        task_images = {i["id"] for i in restrict(splits["train"], labels)["images"]}
+        full = restrict(splits["train"], set(range(num_labels)))
+        full["images"] = [i for i in full["images"] if i["id"] in task_images]
+        full["annotations"] = [a for a in full["annotations"] if a["image_id"] in task_images]
+        (task_dir / f"train_task_{task_id}_gt_full.json").write_text(json.dumps(full))
     for split in ("val", "test"):
         (task_dir / f"{split}_full.json").write_text(json.dumps(restrict(splits[split], set(range(num_labels)))))
     (task_dir / "train_joint.json").write_text(json.dumps(restrict(splits["train"], set(range(num_labels)))))

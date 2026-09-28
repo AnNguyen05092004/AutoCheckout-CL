@@ -52,7 +52,7 @@ def prototype_matrix(class_prototypes, num_old_classes, device):
 
 
 def select_pseudo_labels(scores, labels, boxes, features, prototypes, valid, *, mode, tau_high, tau_low,
-                         sim_thresh, nearest_prototype=False, gt_boxes=None, gt_iou=0.0):
+                         sim_thresh, nearest_prototype=False, gt_boxes=None, gt_iou=0.0, return_keep=False):
     """Pseudo-labels of one image from its candidates (outputs of select_candidates for that image).
 
     features: [k, D] teacher query features of the candidates.
@@ -62,7 +62,7 @@ def select_pseudo_labels(scores, labels, boxes, features, prototypes, valid, *, 
     guards against confusing similar SKUs (same brand, other flavour).
     gt_iou > 0 (I3): drop pseudo-labels overlapping a box of the current task's annotations
     (IoU >= gt_iou), so one object never gets two labels.
-    Returns (boxes [n, 4], labels [n]).
+    Returns (boxes [n, 4], labels [n]), plus the boolean mask over the candidates if return_keep (V4).
     """
     keep = scores > tau_high
     if mode == 'ppg':
@@ -81,4 +81,6 @@ def select_pseudo_labels(scores, labels, boxes, features, prototypes, valid, *, 
     if gt_iou > 0 and gt_boxes is not None and len(gt_boxes) and keep.any():
         overlap = box_iou(cxcywh_to_xyxy(boxes), cxcywh_to_xyxy(gt_boxes.to(boxes.dtype))).max(dim=1).values
         keep &= overlap < gt_iou
+    if return_keep:
+        return boxes[keep], labels[keep], keep
     return boxes[keep], labels[keep]
