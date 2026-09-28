@@ -194,19 +194,20 @@ Mỗi lần SSH lại: `source ~/venvs/pdp/bin/activate`.
 
 Dataset gốc chỉ có trên Kaggle (cần tài khoản miễn phí). Bản mirror trên HuggingFace không dùng được vì thiếu tên file gốc và trường `level` (plan mục 4.1).
 
-1. Đăng nhập kaggle.com → *Settings* → mục *API* → *Create New Token*. Trình duyệt tải về file `kaggle.json`.
-2. Copy lên VM từ Mac (**không commit**):
+1. Đăng nhập kaggle.com → *Settings* → mục *API* → *Generate New Token*. Kaggle hiện ra một chuỗi dạng `KGAT_...`, gọi là API token định dạng mới. File `kaggle.json` chỉ dùng cho định dạng cũ ("Legacy API Credentials"), không cần nữa.
+2. Đưa token lên VM, vào `~/.kaggle/access_token`, quyền 600 (**không commit**, không ghi vào file nào trong repo):
 
 ```bash
-gcloud compute scp ~/Downloads/kaggle.json auto-cl:kaggle.json --zone=us-central1-c --project=project-95a0d104-9d0f-4aa1-ba0
-gcloud compute ssh auto-cl "${GC[@]}" --command 'mkdir -p ~/.kaggle && mv ~/kaggle.json ~/.kaggle/ && chmod 600 ~/.kaggle/kaggle.json'
+printf '%s' 'KGAT_...' | gcloud compute ssh auto-cl "${GC[@]}" --command 'mkdir -p ~/.kaggle && chmod 700 ~/.kaggle && (umask 077 && cat > ~/.kaggle/access_token)'
 ```
+
+`scripts/download_rpc.sh` gọi thẳng API tải của Kaggle bằng `curl` với token này, vì Kaggle CLI bản dành cho Python 3.10 (1.7.4.5) chưa đọc được token định dạng mới. Script vẫn nhận `~/.kaggle/kaggle.json` kiểu cũ nếu có. Nếu token bị lộ thì vào *Settings* → *API* để thu hồi và tạo token mới.
 
 ### 6.2 Tải và chuẩn bị dữ liệu (trên VM, trong tmux)
 
 ```bash
 source ~/venvs/pdp/bin/activate && cd ~/AutoCheckout-CL
-bash scripts/download_rpc.sh                               # T0.5: tải 15,9 GB, giải nén ảnh quầy, xóa zip
+bash scripts/download_rpc.sh                               # T0.5: tải 15,9 GB (tải tiếp được nếu bị ngắt), giải nén ảnh quầy, xóa zip
 bash scripts/prepare_data.sh 2>&1 | tee /data/rpc/prepare_data.log   # DL1 -> DL6
 ```
 
