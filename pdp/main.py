@@ -199,6 +199,8 @@ def get_args_parser():
     # Fixes of the original code (IMPLEMENTATION_PLAN.md 6.3); 0 restores the original behaviour (pilot P1)
     parser.add_argument('--init_new_prompts', default=1, type=int,
                         help='F2: Gram-Schmidt init of the private prompts of each new task')
+    parser.add_argument('--ddl_lambda', default=0.15, type=float,
+                        help='F3: weight of the directional decoupled loss L_DDL (paper: 0.15; 0 disables it)')
 
     # Bounding box thresholds
     parser.add_argument('--bbox_thresh', default=0.3, type=float, 

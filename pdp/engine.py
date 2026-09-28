@@ -406,6 +406,13 @@ class local_trainer(pl.LightningModule):
 		loss = outputs.loss
 		loss_dict = outputs.loss_dict
 
+		if self.training and self.args.use_prompts and getattr(self.args, 'ddl_lambda', 0) > 0:
+			# F3: L_DDL was never applied in the original code (disabled flag, and the decoder
+			# discarded the loss returned by the prompt module).
+			ddl_loss = self.model.model.prompts.ddl_loss_all_layers()
+			loss_dict['loss_ddl'] = ddl_loss
+			loss = loss + self.args.ddl_lambda * ddl_loss
+
 		if self.args.local_query:
 			loss_dict['query_loss'] = query_loss
 
@@ -429,7 +436,7 @@ class local_trainer(pl.LightningModule):
 	def training_step(self, batch, batch_idx): # automatic training schedule
 		loss, loss_dict = self.common_step(batch, batch_idx)
 		# logs metrics for each training_step
-		short_map = {'loss_ce':'ce','loss_giou':'giou','cardinality_error':'car','training_loss':'tr','loss_bbox':'bbox', 'query_loss':'QL'}
+		short_map = {'loss_ce':'ce','loss_giou':'giou','cardinality_error':'car','training_loss':'tr','loss_bbox':'bbox', 'query_loss':'QL', 'loss_ddl':'DDL'}
 		self.log("tr", loss, prog_bar=True)
 		for k,v in loss_dict.items():
 			self.log(short_map[k], v.item(), prog_bar=True)

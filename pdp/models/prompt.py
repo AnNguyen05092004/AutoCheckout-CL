@@ -82,6 +82,25 @@ class Prompt(nn.Module):
         loss = torch.sum(nn.functional.relu(threshold_tensor - theta)) * 2 / (npa.size(0) * npb.size(0))
         return loss
 
+    def ddl_loss_all_layers(self):
+        """Directional decoupled loss L_DDL of the paper (eq. 9-10), without the lambda factor (F3).
+
+        Penalises every (shared prompt, private prompt in use) pair whose angle is below
+        ddl_angle_threshold (90 degrees); private prompts of earlier tasks are detached, as in
+        forward(). The paper does not say how the layers are combined: we average over the
+        prompt layers. L_DDL depends only on prompt parameters, so it is computed once per
+        training step here instead of inside every decoder forward. The DDL branch inside
+        forward() is left as in the original code, where it never runs (ortho_mu is 0).
+        """
+        s = sum(self.pool_sizes[:self.task_count])
+        f = s + self.pool_sizes[self.task_count]
+        losses = []
+        for e in self.e_layers:
+            p = getattr(self, f'private_p_{e}')
+            private = torch.cat((p[:s].detach(), p[s:f]), dim=0)
+            losses.append(self.ddl_loss(getattr(self, f'shared_p_{e}'), private, self.ddl_angle_threshold))
+        return torch.stack(losses).mean()
+
     def gram_schmidt(self, vv):
 
         def projection(u, v):
