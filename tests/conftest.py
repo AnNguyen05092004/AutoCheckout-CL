@@ -6,6 +6,9 @@ from pathlib import Path
 # also has TensorFlow, which transformers would import and which aborts the process. Must be set
 # before transformers is imported. Harmless on the VM, where TensorFlow is not installed.
 os.environ.setdefault("USE_TF", "0")
+# Tests never download weights; without this, transformers/timm spend about a minute per model build
+# waiting on the Hugging Face Hub when it is unreachable.
+os.environ.setdefault("HF_HUB_OFFLINE", "1")
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PDP_DIR = REPO_ROOT / "pdp"
