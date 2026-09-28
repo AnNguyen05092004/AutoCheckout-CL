@@ -1,0 +1,21 @@
+# Pinned runtime dependencies shared by the VM (CUDA) and the Mac (CPU tests).
+# PyTorch is installed separately because the wheel index differs:
+#   VM : pip install torch==2.2.2 torchvision==0.17.2 --index-url https://download.pytorch.org/whl/cu121
+#   Mac: pip install torch==2.2.2 torchvision==0.17.2
+# Versions follow pdp/requirement.txt where the PDP code depends on them.
+numpy==1.24.4
+scipy==1.10.1
+pillow==10.2.0
+matplotlib==3.7.4
+tqdm==4.66.1
+pycocotools==2.0.7
+scikit-learn==1.3.2
+transformers==4.37.2
+tokenizers==0.15.1
+huggingface-hub==0.20.3
+safetensors==0.4.2
+timm==0.9.12
+lightning==2.1.3
+pytorch-lightning==2.1.3
+torchmetrics==1.3.0.post0
+ninja==1.11.1.1

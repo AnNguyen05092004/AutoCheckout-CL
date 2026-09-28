@@ -1,6 +1,6 @@
 # Kế hoạch triển khai AutoCheckout-CL (giai đoạn 1: ảnh quầy thật RPC)
 
-- Phiên bản 1.2, ngày 28/09/2026. Trạng thái: **chờ chốt các quyết định còn mở ở mục 2.2**. Máy ảo: `auto-cl` (L4), xem mục 3.1.
+- Phiên bản 1.3, ngày 28/09/2026. Trạng thái: **đang implement**; tiến độ từng task ghi ở [PROGRESS.md](PROGRESS.md). Máy ảo: `auto-cl` (L4), xem mục 3.1. Các thay đổi so với v1.2 (sau lượt rà soát trước khi code) liệt kê ở Phụ lục B.
 - Tài liệu liên quan: paper PDP (file PDF trong repo), [phân tích trước đó](<Phân tích PDP cho đồ án thanh toán tự động (RPC).md>), [hướng dẫn máy ảo](GCP_TRAINING_GUIDE.md).
 - Code gốc tham chiếu: [PDP_IOD](https://github.com/zyt95579/PDP_IOD), commit `7702d91`. Mọi số dòng trong tài liệu này tính theo commit đó; link trỏ cố định vào commit.
 - Các điểm ghi "đã kiểm chứng" là đã chạy code hoặc đọc nguồn gốc. Các con số ghi "ước tính" phải thay bằng số đo ở pilot.
@@ -67,9 +67,10 @@ Camera chụp các sản phẩm khách đặt trên quầy, hệ thống nhận 
 
 | Mã | Câu hỏi | Đề xuất | Phải chốt trước |
 |---|---|---|---|
-| QĐ-1 | Số slot lớp của mô hình | 224 (200 SKU RPC + 24 dự phòng cho demo); classifier 225 đầu ra | Khi train task 1 chính thức (pilot không bị ảnh hưởng) |
-| QĐ-2 | Kịch bản "nhân viên chỉ gán nhãn SKU mới trên ảnh quầy" có phù hợp cách trình bày đề tài không | Có | DL5 |
-| QĐ-3 | Dọn dữ liệu project cũ | **Đã xong 28/09**: ổ 200 GB đã được format (xóa 36 GB bộ ORBIT và 2,6 GB kết quả cũ); thư mục home trên ổ boot không có dữ liệu project cũ | — |
+| QĐ-1 | Số slot lớp của mô hình | **Đã chốt 28/09: 224** (200 SKU RPC + 24 dự phòng cho demo); classifier 225 đầu ra | — |
+| QĐ-2 | Kịch bản "nhân viên chỉ gán nhãn SKU mới trên ảnh quầy" có phù hợp cách trình bày đề tài không | **Đã chốt 28/09: có** | — |
+| QĐ-3 | Dọn dữ liệu project cũ | **Đã xong 28/09**: ổ 200 GB đã được format; sau đó VM cũ `anmetarayban` và cả 2 ổ của nó đã bị xóa (phải tắt deletion protection trước). Còn 14 snapshot của ổ boot cũ (khoảng 30 GB, khoảng 40 nghìn VND/tháng) chờ nhóm quyết định | — |
+| QĐ-7 | Code PDP_IOD gốc không có LICENSE, có được đưa lên repo GitHub public không | **Đã chốt 28/09: chưa push**. Repo git chỉ ở local trên Mac; code lên VM bằng `git bundle` (script `scripts/sync_to_vm.sh`) | Trước khi push lên GitHub |
 | QĐ-4 | Ngân sách | Còn khoảng 4 triệu VND (≈ 153 USD theo tỷ giá trong bảng giá GCP), **hết hạn 24/10/2026** (mục 3.6) | — |
 | QĐ-6 | Cấu hình VM (mục 3.5) | **Đã chọn phương án B (28/09)**: VM `auto-cl`. Hiện đang chạy on-demand; nên chuyển sang Spot khi R1/R2 xong | — |
 | QĐ-5 | Demo webcam với sản phẩm Việt Nam (task 6) có nằm trong phạm vi đồ án không | Có, nếu còn thời gian | Giai đoạn 8 |
@@ -88,7 +89,7 @@ Camera chụp các sản phẩm khách đặt trên quầy, hệ thống nhận 
 | Kiểu cấp phát | **STANDARD (on-demand)**, khoảng 18.400 VND/giờ. Nên chuyển sang **Spot** (khoảng 11.100 VND/giờ) sau khi R1/R2 chạy được; cách chuyển ở mục 2.5 của hướng dẫn VM |
 | Ổ | 1 ổ boot 100 GB `pd-balanced`, còn trống khoảng 80 GB, ghi khoảng 178 MB/s; snapshot hằng ngày, giữ 14 ngày |
 | Phần mềm | Image `common-cu129-ubuntu-2204-nvidia-580`: driver 580.178.04, CUDA 12.9, Python 3.10.12; không có sẵn PyTorch; thiếu `python3.10-venv` và `unzip` |
-| VM cũ `anmetarayban` (V100) | Đang tắt; 2 ổ `pd-standard` (100 + 200 GB, ổ 200 GB đã xóa sạch) vẫn tốn khoảng 313 nghìn VND/tháng |
+| VM cũ `anmetarayban` (V100) | **Đã xóa cùng 2 ổ ngày 28/09** (QĐ-3) |
 
 ### 3.2 Hệ quả cho việc implement
 
@@ -211,7 +212,7 @@ Dữ liệu thực tế của project: VM Spot cũ (V100, zone `us-central1-b`) 
 
 | Cách chạy | Tổng chi phí | Còn dư so với 4 triệu |
 |---|---|---|
-| Toàn bộ on-demand | Khoảng 4,0 triệu | Gần như không còn; nếu giữ thêm 2 ổ của VM cũ (khoảng 270 nghìn) thì vượt |
+| Toàn bộ on-demand | Khoảng 4,0 triệu | Gần như không còn (2 ổ của VM cũ đã xóa ngày 28/09 nên không còn khoản 270 nghìn tiền ổ) |
 | On-demand khi cài đặt và pilot, **Spot cho các lần chạy chính** (đề xuất) | Khoảng 2,7 triệu | Khoảng 1,3 triệu (đủ cho **một** trong hai: E4 cấu hình đầy đủ, khoảng 0,8 triệu; hoặc thêm seed, khoảng 0,9 triệu) |
 
 **Mốc gợi ý để kịp hạn** (thời gian GPU cho E0–E5 khoảng 4 ngày chạy liên tục trên L4; A1–A4 khoảng 1,5 ngày):
@@ -291,7 +292,7 @@ Lý do chọn như vậy:
   - bảng đổi `category_id` RPC (1..200) sang nhãn nội bộ (0..199, theo thứ tự task);
   - 24 slot dự phòng (200..223) cho task 6.
 - Cách chia: trong mỗi nhóm hàng, trộn SKU (seed 0), rồi rải xen kẽ các nhóm hàng. Kết quả là task 1 chiếm khoảng một nửa mỗi nhóm hàng, phần còn lại chia đều cho task 2–5.
-- Nhãn 224 là slot "không có vật" của classifier (tương ứng `n_classes - 1` trong code gốc).
+- Classifier có 225 đầu ra. Slot 224 (`n_classes - 1` trong code gốc) **không bao giờ là nhãn đích**: loss focal dạng sigmoid biểu diễn "không có vật" bằng vector toàn 0, và code gốc che slot này khi train, bỏ nó khi đánh giá (đã kiểm tra trong `DeformableDetrLoss.loss_labels`).
 
 ### 4.5 File JSON cho từng task (định dạng code PDP đọc được)
 
@@ -311,16 +312,24 @@ Hàm sinh JSON nhận **nhiều nguồn ảnh**, mỗi nguồn có nhãn đánh 
 
 ```
 AutoCheckout-CL/
-├── pdp/                 # code PDP_IOD (commit đầu = bản gốc 7702d91, các commit sau = từng bản sửa)
-├── tools/               # audit_rpc, resize, make_split, make_task_config, make_task_json, predict, eval_cl, eval_count, ppg_audit
+├── pdp/                 # code PDP_IOD (commit đầu = bản gốc 7702d91, các commit sau = từng bản sửa; nguồn ghi ở pdp/UPSTREAM.md)
+├── autocheckout/        # thư viện dùng chung: TaskConfig, định dạng file dự đoán, ghi file an toàn, chỉ số
+├── tools/               # audit_rpc, resize, make_split, make_task_config, make_task_json, predict, eval_cl, eval_count, ppg_audit, summarize
 ├── baselines/           # adapt.py (B1), retrieval (B3)
 ├── configs/             # split, task, file tham số của từng thí nghiệm
-├── scripts/             # run_exp.sh, pilot, gói kết quả
+├── scripts/             # run_exp.sh, sync_to_vm.sh, gói kết quả
 ├── tests/               # unit test (CPU) + smoke test
+├── docs/formats.md      # định dạng file và thư mục dùng chung giữa các phần code
 ├── results/             # kết quả tải về từ VM (chỉ số, log; không có checkpoint)
-├── IMPLEMENTATION_PLAN.md, GCP_TRAINING_GUIDE.md
-└── (không commit) data/, runs/, *.pth, *.ckpt, kaggle.json
+├── IMPLEMENTATION_PLAN.md, GCP_TRAINING_GUIDE.md, PROGRESS.md
+└── (không commit) data/, runs/, *.pth, *.ckpt, *.npz, kaggle.json, .venv/
 ```
+
+Lưu ý kỹ thuật:
+
+- Code PDP dùng import kiểu top-level (`import utils`, `from datasets...`, `from models...`), nên phải chạy với thư mục `pdp/` là thư mục làm việc (hoặc đứng đầu `sys.path`). Vì thư mục `pdp/datasets` trùng tên gói `datasets` của HuggingFace, **không cài gói `datasets`** vào venv.
+- `autocheckout` được cài ở chế độ editable (`pip install -e .`) để cả `pdp/` lẫn `tools/` import được.
+- Định dạng dữ liệu, file dự đoán và thư mục run được mô tả ở [docs/formats.md](docs/formats.md).
 
 Luồng xử lý **một task t** (sau khi sửa):
 
@@ -344,8 +353,8 @@ Mỗi việc gồm: việc cần làm, đầu ra, và **tiêu chí nghiệm thu*
 
 | ID | Việc | Nghiệm thu |
 |---|---|---|
-| T0.1 | Khởi tạo git cho thư mục này và đẩy lên repo GitHub `AnNguyen05092004/AutoCheckout-CL` (repo đang trống, **public**). Commit đầu: tài liệu. Commit thứ hai: code PDP_IOD gốc, không sửa gì (ghi rõ nguồn và commit `7702d91`). Tạo `.gitignore` cho `data/ runs/ *.pth *.ckpt kaggle.json .venv/` | Clone lại từ GitHub thấy đủ file; `git log` tách được "code gốc" và "bản sửa" |
-| T0.2 | File phiên bản thư viện (`requirements-vm.txt`, lấy theo mục 5 của hướng dẫn VM); môi trường CPU trên Mac để chạy unit test | `pytest` chạy được trên Mac |
+| T0.1 | Khởi tạo git **local** cho thư mục này (QĐ-7: chưa push lên GitHub). Commit đầu: tài liệu. Commit thứ hai: code PDP_IOD gốc, không sửa gì (ghi rõ nguồn và commit `7702d91`). Tạo `.gitignore` cho `data/ runs/ *.pth *.ckpt kaggle.json .venv/` | Các file trong `pdp/` giống hệt blob của upstream; `git log` tách được "code gốc" và "bản sửa" |
+| T0.2 | File phiên bản thư viện (`requirements.txt` dùng chung, `requirements-dev.txt` cho test; PyTorch cài riêng theo máy); môi trường CPU `.venv` trên Mac để chạy unit test | `pytest` chạy được trên Mac |
 | T0.3 | Trên VM: tạo venv, chạy `nvidia-smi`, kiểm tra `torch.cuda` thấy L4. **Thử build kernel** bằng một script nhỏ gọi `torch.utils.cpp_extension.load` trên thư mục `transformers/kernels/deformable_detr`, độc lập với code PDP; việc nối kernel vào code PDP làm ở F11 | Import được module kernel; thời gian build được ghi lại |
 | T0.4 | Tạo `/data/rpc` và `/data/runs` trên ổ boot (lệnh ở mục 4 của hướng dẫn VM). Nếu thiếu chỗ thì tăng ổ lên 150 GB | `df -h` cho thấy đủ chỗ theo mục 3.3 |
 | T0.5 | Tải RPC bằng Kaggle API; chỉ giải nén `val2019/`, `test2019/` và 2 file JSON tương ứng | Số file ảnh là 6.000 và 24.000; JSON đọc được |
@@ -401,11 +410,10 @@ Các file được dẫn chiếu (trong thư mục gốc hoặc `models/` của 
   - `use_ddl_loss = False` (prompt.py#L69); loss chỉ được tính trong `if train and self.ortho_mu > 0` (prompt.py#L253), mà `ortho_mu = 0`.
   - Decoder bỏ luôn loss mà module prompt trả về: `p_list, _, output = ...` ([modeling_deformable_detr.py#L1393](https://github.com/zyt95579/PDP_IOD/blob/7702d91d595e5ceed5df333d50c68444d7075ef9/models/modeling_deformable_detr.py#L1393)).
 - *Sửa:*
-  - Tính L_DDL khi train với θ = 90°, λ = 0,15 (theo paper), không phụ thuộc `ortho_mu`.
-  - Decoder cộng loss của từng layer rồi lấy trung bình 6 layer. Paper không nói cách gộp; ghi chú rõ trong code.
-  - Model cộng L_DDL vào loss tổng và ghi vào `loss_dict['loss_ddl']`.
-  - Thêm khóa này vào `short_map` (engine.py#L432), nếu không phần log sẽ báo `KeyError`.
-- *Nghiệm thu:* λ = 0 và λ > 0 cho loss khác nhau; pool chung nhận gradient từ L_DDL.
+  - L_DDL (công thức 9–10 của paper) chỉ phụ thuộc tham số prompt, không phụ thuộc ảnh đầu vào. Vì vậy tính **một lần mỗi bước train** ngay từ tham số của module prompt: với mỗi layer, lấy góc giữa từng prompt chung và từng prompt riêng đang dùng (các task trước bị detach như code gốc), rồi lấy trung bình 6 layer. Cách này cho cùng giá trị với việc tính trong decoder, nhưng không phải sửa đường trả về của decoder và không bị tính thừa ở lượt forward không gradient hay ở teacher. Paper không nói cách gộp các layer; ghi chú rõ trong code.
+  - θ = 90°, λ = 0,15 (tham số `--ddl_lambda`), không phụ thuộc `ortho_mu`.
+  - Trainer cộng λ·L_DDL vào loss tổng và ghi vào `loss_dict['loss_ddl']`; thêm khóa này vào `short_map` (engine.py#L432), nếu không phần log sẽ báo `KeyError`.
+- *Nghiệm thu:* λ = 0 và λ > 0 cho loss khác nhau; pool chung nhận gradient từ L_DDL; giá trị khớp cách tính thủ công trên tensor nhỏ.
 
 **F4: L_Q có gradient** (đã kiểm chứng, có từ MD-DETR)
 - *Hiện trạng:* `query_tf` và cross-entropy nằm trong `torch.no_grad()` (engine.py#L314-L332), nên L_Q không tạo gradient.
@@ -469,6 +477,7 @@ Các file được dẫn chiếu (trong thư mục gốc hoặc `models/` của 
   - Optimizer có 2 nhóm (engine.py#L587-L624): `class_embed` và `prompts` dùng lr 1e-4. Nhóm lr 1e-5 gồm `input_proj`, `query_position_embeddings`, `reference_points`, `level_embed`, `bbox_embed`. Các tham số này dùng chung cho mọi task, nên cũng có thể gây quên.
 - *Sửa:* ghi vào log mỗi task bảng tổng hợp số tham số được train theo nhóm. Không đổi hành vi.
 - *Nghiệm thu:* cấu hình mặc định (225 lớp, 224 slot) cho 69,12M tham số tổng và **35,00M** tham số được train (đã tính ở bước lập plan).
+- *Ghi chú (khác Deformable DETR gốc, giữ nguyên để giống code PDP):* model được tạo từ `DeformableDetrConfig()` mặc định của HuggingFace, nên **không có loss phụ ở các layer decoder** (`auxiliary_loss=False`), chi phí ghép cặp của lớp là 1 và trọng số `loss_ce` là 1; các tham số `--set_cost_*`, `--*_loss_coef` trong `main.py` không được dùng. B1 (E0, FSA) dùng cùng cấu hình này để các thí nghiệm so sánh được với nhau.
 
 **F11: Kernel CUDA** (đã kiểm chứng: code gốc không bao giờ dùng kernel)
 - *Hiện trạng:*
@@ -492,7 +501,7 @@ Các file được dẫn chiếu (trong thư mục gốc hoặc `models/` của 
 
 | ID | Việc | Nghiệm thu |
 |---|---|---|
-| R1 | **Resume khi Spot bị thu hồi.** Dùng `ModelCheckpoint` riêng cho từng task (`save_last=True`, lưu mỗi N bước ≈ 30 phút và cuối epoch). **Ghi checkpoint an toàn:** ghi ra file tạm rồi đổi tên, giữ lại bản trước, vì Spot có thể tắt máy đúng lúc đang ghi; gọi `fit(ckpt_path=last)` nếu đã có checkpoint. Dùng `on_save_checkpoint`/`on_load_checkpoint` để lưu thêm bộ nhớ prototype và `batch_counter`. Trả scheduler từ `configure_optimizers`, thay cho việc gọi tay ở engine.py#L457. Teacher không cần nằm trong checkpoint vì nạp lại được từ `task_final.pth` của task trước | Dừng tiến trình giữa epoch 2 rồi chạy lại: tiếp tục từ checkpoint gần nhất; epoch, lr và prototype đều đúng. Resume giữa epoch không tái lập được chính xác thứ tự dữ liệu; ghi chú điều này |
+| R1 | **Resume khi Spot bị thu hồi.** Dùng `ModelCheckpoint` riêng cho từng task (`save_last=True`, lưu mỗi N bước ≈ 30 phút và cuối epoch). **Ghi checkpoint an toàn:** ghi ra file tạm rồi đổi tên, giữ lại bản trước, vì Spot có thể tắt máy đúng lúc đang ghi (đã kiểm tra: hàm `_atomic_save` của Lightning 2.1.3 ghi thẳng vào file đích nên **không** an toàn; cần một `CheckpointIO` riêng); gọi `fit(ckpt_path=last)` nếu đã có checkpoint. Dùng `on_save_checkpoint`/`on_load_checkpoint` để lưu thêm bộ nhớ prototype và `batch_counter`. Trả scheduler từ `configure_optimizers`, thay cho việc gọi tay ở engine.py#L457. Teacher không cần nằm trong checkpoint vì nạp lại được từ `task_final.pth` của task trước | Dừng tiến trình giữa epoch 2 rồi chạy lại: tiếp tục từ checkpoint gần nhất; epoch, lr và prototype đều đúng. Resume giữa epoch không tái lập được chính xác thứ tự dữ liệu; ghi chú điều này |
 | R2 | `scripts/run_exp.sh <file tham số> [--shutdown]`, chạy tuần tự các task. Task đã có `task_final.pth` và dự đoán thì bỏ qua; có `last.ckpt` thì resume. Sau mỗi task chạy V1–V3. Khi kết thúc (**kể cả khi lỗi**) và có `--shutdown` thì tắt VM | Chạy lại lệnh sau khi đã xong thì không train lại; xóa dự đoán của task 3 thì chỉ chạy lại dự đoán task 3 |
 | R3 | Lưu vết mỗi lần chạy: `args.json`, git hash + diff, phiên bản thư viện, md5 của `test_full.json`, log, thời gian mỗi task, bộ nhớ GPU cao nhất. Thư mục `runs/<thí nghiệm>/task_<t>/` | Từ thư mục run biết chính xác code, cấu hình và dữ liệu đã dùng |
 | R5 | *(Tùy chọn, nên có khi chạy Spot)* Tự bật lại khi bị thu hồi: một script trên Mac, cứ khoảng 10 phút kiểm tra nhật ký `compute.instances.preempted`; nếu VM vừa bị thu hồi thì `start` lại. Một dịch vụ khởi động trên VM tự chạy lại R2 nếu còn thí nghiệm dở. Không bật lại khi VM tắt do `--shutdown` | Giả lập bằng cách tự tắt VM giữa chừng: job tự chạy tiếp mà không cần thao tác tay |
@@ -502,7 +511,7 @@ Các file được dẫn chiếu (trong thư mục gốc hoặc `models/` của 
 
 | ID | Việc | Nghiệm thu |
 |---|---|---|
-| V1 | `tools/predict.py`: suy luận 2 lượt; che các lớp chưa học; mỗi query 1 nhãn; giữ top-100/ảnh; lưu JSON dạng COCO results (nhãn nội bộ và `category_id` RPC) | Số dự đoán/ảnh ≤ 100; đổi qua lại giữa hai kiểu nhãn không mất thông tin |
+| V1 | `tools/predict.py` (lõi dùng chung với `main.py`): suy luận 2 lượt; che các lớp chưa học và slot 224; giữ **top-100 cặp (query, lớp) mỗi ảnh như hậu xử lý gốc**, kèm chỉ số query; lưu `pred_<split>.npz` theo [docs/formats.md](docs/formats.md) (nhãn model; đổi sang `category_id` RPC bằng `TaskConfig`). mAP (V2) dùng toàn bộ các cặp để so được với paper; đếm (V3) và demo lấy **lớp cao nhất của mỗi query** (`top1_per_query`) | Số dòng/ảnh ≤ 100; không có nhãn ≥ số lớp đã học; mAP tính từ file khớp với cách tính của code gốc (F9) |
 | V2 | `tools/eval_cl.py`. **M1 (giao thức paper):** mAP@C/P/A, mỗi chỉ số tính trên tập ảnh con chứa lớp tương ứng. **M2 (thực tế cửa hàng):** dùng toàn bộ test, bỏ các dự đoán chồng (IoU ≥ 0,5) lên SKU chưa học, vì ở thời điểm task t cửa hàng chưa bán các SKU đó. AP50 là chỉ số chính, kèm AP50:95; tách theo easy/medium/hard; ma trận (sau task t × nhóm lớp g); độ quên | M1 khớp code gốc (F9); unit test trên dữ liệu giả có đáp án |
 | V3 | `tools/eval_count.py`: **chọn ngưỡng trên val** (tối đa cAcc) rồi áp dụng cho test. Tính cAcc, ACD, mCCD, mCIoU (tự cài theo công thức của `rpctool`, đối chiếu với `rpctool` trên 1 file). Số của `rpctool` (ngưỡng dò ngay trên tập đang đánh giá, tức "nhìn đáp án") chỉ ghi kèm để so với leaderboard. Với các task giữa chừng: cAcc chỉ tính trên SKU đã học | Kết quả tự cài và `rpctool` trùng nhau khi dùng cùng ngưỡng |
 | V4 | `tools/ppg_audit.py`: chạy teacher + PPG trên 1.000 ảnh train của task t có nhãn đầy đủ. Đo precision/recall của nhãn giả theo từng nhánh (tin cậy cao / qua prototype) và theo nhóm hàng; ma trận nhầm giữa các SKU cùng nhóm | Có bảng cho pilot và cho E4 |
@@ -514,7 +523,7 @@ Các file được dẫn chiếu (trong thư mục gốc hoặc `models/` của 
 | ID | Cải tiến | Mặc định trong E4 | Vì sao / rủi ro |
 |---|---|---|---|
 | I1 | **Thích nghi ở task 1 (FSA):** B1 fine-tune toàn bộ mô hình trên dữ liệu task 1, lưu dạng HF (`save_pretrained` kèm processor), rồi PDP task 1 dùng `--repo_name` trỏ tới đó và đóng băng như cũ | Bật | Đặc trưng COCO đóng băng khó phân biệt các SKU gần giống nhau. Rủi ro: SKU tương lai có trong ảnh task 1 bị học thành nền. P3 sẽ kiểm tra |
-| I2 | Augmentation (chỉ khi train): lật ngang/dọc, xoay 90°, đổi màu nhẹ, đa tỉ lệ (`shortest_edge` ngẫu nhiên 640–800). Chèn trước bộ tiền xử lý ở [coco_hug.py#L43-L54](https://github.com/zyt95579/PDP_IOD/blob/7702d91d595e5ceed5df333d50c68444d7075ef9/datasets/coco_hug.py#L43-L54) | Bật | Code gốc hoàn toàn không có augmentation. Nghiệm thu: unit test tọa độ box sau biến đổi, và vẽ ra để kiểm tra |
+| I2 | Augmentation (chỉ khi train): xoay bội số 90°, đổi màu nhẹ, đa tỉ lệ (`shortest_edge` ngẫu nhiên 640–800). **Mặc định không lật ảnh**: lật một chiều tạo ra bao bì có chữ và logo bị ngược gương, không bao giờ gặp trên quầy thật, trong khi RPC có nhiều SKU chỉ khác nhau ở chữ; lật cả hai chiều thì trùng với xoay 180°. Lật để thành cờ riêng nếu muốn thử. Chèn trước bộ tiền xử lý ở [coco_hug.py#L43-L54](https://github.com/zyt95579/PDP_IOD/blob/7702d91d595e5ceed5df333d50c68444d7075ef9/datasets/coco_hug.py#L43-L54) | Bật | Code gốc hoàn toàn không có augmentation. Nghiệm thu: unit test tọa độ box sau biến đổi, và vẽ ra để kiểm tra |
 | I3 | Bỏ nhãn giả chồng (IoU ≥ 0,5) lên GT của task hiện tại | Bật | Tránh cùng một vật có 2 nhãn khác nhau |
 | I4 | Nhận ứng viên qua prototype chỉ khi prototype gần nhất đúng là lớp teacher dự đoán | Tắt (A7) | Chống nhầm giữa các SKU cùng hãng khác vị |
 | I5 | Đóng băng các tham số dùng chung sau task 1 (`input_proj`, `query_tf`, `query_position_embeddings`, `reference_points`, `level_embed`, `bbox_embed`) | Tắt (A8) | Giảm quên, nhưng có thể giảm khả năng học lớp mới |
@@ -524,7 +533,7 @@ Các file được dẫn chiếu (trong thư mục gốc hoặc `models/` của 
 | ID | Việc | Nghiệm thu |
 |---|---|---|
 | B1 | `baselines/adapt.py`: fine-tune Deformable DETR toàn bộ, không dùng prompt. Chia learning rate theo nhánh có sẵn trong code gốc ([engine.py#L601-L617](https://github.com/zyt95579/PDP_IOD/blob/7702d91d595e5ceed5df333d50c68444d7075ef9/engine.py#L601-L617)): lr 1e-4, backbone 1e-5, `sampling_offsets`/`reference_points` × 0,1. Có 3 chế độ: (a) 200 lớp → **E0**; (b) task 1 → **FSA** (I1); (c) 1 lớp "sản phẩm" → detector cho E5 | Chạy được cả 3 chế độ; E0 có đầu ra đánh giá được bằng V1–V3 |
-| B2 | Cờ bật/tắt thành phần: `--use_shared`, `--use_private`, `--pseudo {none,threshold,ppg}`, `--ddl_lambda`, `--topk`, các cờ I3–I5, cờ augmentation | Mỗi cờ có test nhỏ; E1, E2 và các ablation chỉ khác nhau ở cờ |
+| B2 | Cờ bật/tắt thành phần: `--use_shared`, `--use_private`, `--pseudo {none,threshold,ppg}`, `--ddl_lambda`, `--topk`, các cờ I3–I5, cờ augmentation. Thêm các cờ trả về **hành vi gốc** của từng bản sửa cho P1 (khởi tạo prompt task mới F2, gradient L_Q F4, teacher không prompt F5, cách chọn ứng viên cũ F6, prototype không lọc F7, không xáo trộn F12) | Mỗi cờ có test nhỏ; E1, E2, P1 và các ablation chỉ khác nhau ở cờ |
 | B3 | **E5 (truy xuất):** detector B1c + DINOv2 (ViT-S/14 hoặc B/14) trích đặc trưng từ vùng cắt. Mỗi SKU lưu tối đa 100 embedding (cùng ngân sách với bộ nhớ prototype của PDP); gán nhãn theo prototype hoặc kNN gần nhất; ngưỡng "không chắc" chọn trên val. Task mới chỉ cần thêm embedding, không train lại | Đánh giá được bằng V1–V3 như các phương pháp khác |
 
 ---
@@ -649,3 +658,17 @@ G2 → A1–A9 → V5, V6 → (demo) → báo cáo → G3
 | 69,12M / 35,00M tham số; checkpoint 0,52 / 0,26 GiB | Tạo model với 225 lớp và 224 slot trên CPU |
 | Lỗi F2, F3, F4, F6, F11, F12 | Chạy code (CPU, trọng số ngẫu nhiên) và đọc mã nguồn kernel |
 | Checkpoint `SenseTime/deformable-detr` (300 query, không two-stage, không box refine) | HF Hub config |
+
+## Phụ lục B. Thay đổi so với v1.2 (rà soát trước khi code, 28/09/2026)
+
+| Mục | Thay đổi | Lý do |
+|---|---|---|
+| 2.2 | Chốt QĐ-1 (224 slot), QĐ-2 (có); thêm QĐ-7 (repo chỉ ở local); QĐ-3 cập nhật việc xóa VM cũ | Nhóm trả lời ngày 28/09 |
+| 4.4 | Viết lại ý nghĩa slot 224 | Đọc `DeformableDetrLoss.loss_labels`: "không có vật" là vector đích toàn 0, slot 224 không bao giờ là đích |
+| 5 | Thêm `autocheckout/`, `docs/formats.md`, `PROGRESS.md`; ghi chú cách chạy `pdp/` và xung đột tên `datasets` | Để các phần code viết song song khớp định dạng |
+| F3 | Tính L_DDL một lần mỗi bước từ tham số prompt, không đi qua decoder | Cùng giá trị, ít sửa code hơn, không tính thừa |
+| F10 | Ghi chú model dùng cấu hình HF mặc định (không loss phụ, cost lớp 1) | Khác Deformable DETR gốc; giữ nguyên để giống PDP |
+| R1 | Xác nhận `_atomic_save` của Lightning 2.1.3 không an toàn khi bị tắt máy giữa lúc ghi | Đọc mã nguồn Lightning |
+| V1 | Giữ top-100 cặp (query, lớp) kèm chỉ số query; đếm lấy lớp cao nhất mỗi query | v1.2 vừa đòi "mỗi query 1 nhãn" vừa đòi mAP khớp code gốc (F9); hai yêu cầu này mâu thuẫn |
+| I2 | Mặc định không lật ảnh | Lật tạo bao bì chữ ngược gương, không có trên quầy thật |
+| B2 | Thêm cờ trả về hành vi gốc cho P1 | P1 cần chạy lại được hành vi gốc của từng lỗi |

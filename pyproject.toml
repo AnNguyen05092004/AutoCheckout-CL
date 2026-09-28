@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "autocheckout"
+version = "0.1.0"
+description = "Class-incremental product detection for automatic checkout (RPC + PDP)"
+requires-python = ">=3.10,<3.11"
+
+[tool.setuptools]
+packages = ["autocheckout"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+markers = [
+    "slow: builds the full Deformable DETR model on CPU (tens of seconds)",
+]
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+# pdp/ is vendored upstream code: keep its original style, lint only our own code.
+extend-exclude = ["pdp"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
