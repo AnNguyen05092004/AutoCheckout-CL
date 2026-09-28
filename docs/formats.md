@@ -13,7 +13,7 @@ Quy ước chung:
 ```
 /data/rpc/
 ├── raw/retail_product_checkout/        # T0.5: giải nén từ Kaggle, không sửa
-│   ├── val2019/*.jpg, test2019/*.jpg   # ảnh quầy 1800×1800
+│   ├── val2019/*.jpg, test2019/*.jpg   # ảnh quầy vuông, cạnh khoảng 1750–1890 px
 │   └── instances_val2019.json, instances_test2019.json
 ├── checkout_800/*.jpg                  # DL2: toàn bộ 30.000 ảnh quầy, 800×800, một thư mục phẳng
 ├── ann/checkout_800.json               # DL2: annotation gộp val2019 + test2019 (mục 2)

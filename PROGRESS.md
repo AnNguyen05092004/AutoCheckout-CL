@@ -8,8 +8,7 @@ Trạng thái: **Xong** = đạt tiêu chí nghiệm thu trong plan; **Đang là
 
 | Việc | Ai | Ghi chú |
 |---|---|---|
-| Tạo Kaggle API token (`kaggle.json`) và cho biết đường dẫn trên Mac | Nhóm | Cần cho T0.5; file chỉ copy thẳng lên VM, không commit |
-| Quyết định giữ hay xóa 14 snapshot ổ boot của VM cũ (≈ 30 GB, ≈ 40 nghìn VND/tháng) | Nhóm | VM và 2 ổ đã xóa ngày 28/09 |
+| Tạo tài khoản Kaggle (miễn phí) và API token (`kaggle.json`), cho biết đường dẫn trên Mac | Nhóm | Cần cho T0.5. Mirror HuggingFace không dùng được vì thiếu tên file và `level` (plan mục 4.1). File chỉ copy thẳng lên VM, không commit |
 | QĐ-5: demo webcam có nằm trong phạm vi không | Nhóm | Cần trước giai đoạn demo |
 
 ## Bảng trạng thái
@@ -93,6 +92,10 @@ Trạng thái: **Xong** = đạt tiêu chí nghiệm thu trong plan; **Đang là
   - Nhóm yêu cầu từ nay chỉ chạy 1 agent chính (không dùng agent phụ) để tiết kiệm token.
   - F5–F10, V1 xong. Test F2 phát hiện lỗi Gram-Schmidt khi prompt cũ đã train → sửa bằng QR. Toàn bộ 129 test đạt trên Mac (3 test GPU bỏ qua).
 
+## Nhật ký tiếp
+
+- **29/09/2026**: nhóm chốt E5 = phương án b; giữ 14 snapshot ổ cũ. Kiểm tra nguồn dữ liệu: mirror HuggingFace thiếu tên file và `level`, nên vẫn cần Kaggle. Ảnh quầy RPC không cố định 1800 px (khoảng 1750–1890, vuông); DL2 đã xử lý theo từng ảnh.
+
 ## Handoff (cập nhật 28/09/2026, trước khi compact)
 
 Mọi thông tin cần để làm tiếp nằm ở đây, trong plan và `docs/formats.md`; không cần lịch sử hội thoại.
@@ -136,6 +139,6 @@ Mọi thông tin cần để làm tiếp nằm ở đây, trong plan và `docs/f
 
 ### Câu hỏi còn mở cho nhóm
 
-- `kaggle.json` (T0.5); 14 snapshot ổ cũ (≈ 40 nghìn/tháng); QĐ-5 demo.
-- **E5:** detector class-agnostic (B1c) train bằng box nào? (a) chỉ box của task 1, đúng giao thức nhưng detector sẽ học coi SKU tương lai là nền; (b) mọi box của ảnh task 1, không kèm tên SKU, tức giả định cửa hàng gán box "sản phẩm" từ đầu (lợi thế cho E5, phải ghi rõ). Đề xuất: (b) cho bản chính, (a) nếu còn thời gian.
+- `kaggle.json` (T0.5); QĐ-5 demo. Snapshot ổ cũ: nhóm quyết định giữ lại (29/09).
+- **E5 (đã chốt 29/09: phương án b)**, ghi lại để tham khảo: detector class-agnostic (B1c) train bằng box nào? (a) chỉ box của task 1, đúng giao thức nhưng detector sẽ học coi SKU tương lai là nền; (b) mọi box của ảnh task 1, không kèm tên SKU, tức giả định cửa hàng gán box "sản phẩm" từ đầu (lợi thế cho E5, phải ghi rõ). Đề xuất: (b) cho bản chính, (a) nếu còn thời gian.
 - **E5 giữa chừng:** softmax không trả lời được "chưa biết", nên SKU chưa học bị gán nhãn SKU gần nhất. Chỉ ảnh hưởng chỉ số ở các task giữa; task cuối không sao.

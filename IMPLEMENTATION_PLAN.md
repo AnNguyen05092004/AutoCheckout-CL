@@ -104,7 +104,7 @@ Camera chụp các sản phẩm khách đặt trên quầy, hệ thống nhận 
 | Hạng mục | Dung lượng |
 |---|---|
 | File zip RPC tải từ Kaggle | 15,9 GB (có thể xóa sau khi giải nén; khi cần ảnh sản phẩm đơn thì tải lại) |
-| Ảnh quầy gốc 1800×1800 (`val2019` + `test2019`) | Khoảng 6 GB (trung bình khoảng 200 KB/ảnh, đo trên 14.194 tên file) |
+| Ảnh quầy gốc, vuông, cạnh khoảng 1750–1890 px (`val2019` + `test2019`) | Khoảng 6 GB (trung bình khoảng 200 KB/ảnh, đo trên 14.194 tên file) |
 | Ảnh quầy đã thu nhỏ về 800×800 | Khoảng 2 GB (ước tính) |
 | Mỗi lần chạy 5 task | Khoảng 2 GB: trọng số cuối mỗi task khoảng 0,28 GB × 5, cộng file dự đoán, cộng một checkpoint resume tạm 0,52 GB |
 | Khoảng 20 lần chạy | Khoảng 40 GB |
@@ -236,7 +236,7 @@ Nếu bị trễ, cắt theo thứ tự: A5–A9, rồi E2, rồi dùng ablation
 
 - Kaggle `diyer22/retail-product-checkout-dataset`, phiên bản 5, 15,9 GB, giấy phép **CC BY-NC-SA 4.0** (chỉ dùng phi thương mại, không đưa dữ liệu lên repo).
 - Dữ liệu gồm 200 SKU thuộc 17 nhóm hàng.
-- Ảnh quầy 1800×1800 có 3 mức độ đông:
+- Ảnh quầy vuông, cạnh không cố định: lấy mẫu 1.300 ảnh (qua bản mirror trên HuggingFace, 29/09) thấy cạnh từ khoảng 1750 đến 1890 px, không phải đúng 1800. DL2 co từng ảnh theo cạnh riêng của nó. Có 3 mức độ đông:
 
   | Mức | Số SKU/ảnh | Số vật/ảnh |
   |---|---|---|
@@ -247,6 +247,10 @@ Nếu bị trễ, cắt theo thứ tự: A5–A9, rồi E2, rồi dùng ablation
 - `val2019` có 6.000 ảnh (2.000 mỗi mức); `test2019` có 24.000 ảnh (8.000 mỗi mức). Trung bình 12,26 vật/ảnh.
 - Annotation theo định dạng COCO, `category_id` từ 1 đến 200. `rpctool` đọc trường `level` của ảnh, nên có thể trường này tồn tại; DL1 sẽ kiểm tra.
 - Cần tài khoản Kaggle (API token) để tải. **Không commit file `kaggle.json`.**
+- Đã kiểm tra các nguồn khác (29/09):
+  - Bản mirror trên HuggingFace (`benjamintli/retail-product-checkout`, giống hệt `SAxSHADOW/retail-product-checkout`) tải được không cần đăng nhập, nhưng **chỉ có ảnh, bbox và nhãn**: không có tên file gốc, không có `level`, không có id ảnh.
+  - Thiếu tên file thì không chia tập theo nhóm ảnh chụp liên tiếp được (mục 4.2); thiếu `level` thì không phân tầng theo mức độ đông được. Vì vậy **dùng bản gốc trên Kaggle**.
+  - Baidu Drive (link trên trang RPC) khó dùng từ ngoài Trung Quốc.
 
 ### 4.2 Phát hiện: các nhóm ảnh chụp liên tiếp (cần DL1 xác nhận)
 
@@ -363,7 +367,7 @@ Mỗi việc gồm: việc cần làm, đầu ra, và **tiêu chí nghiệm thu*
 
 | ID | Việc | Nghiệm thu |
 |---|---|---|
-| DL1 | `tools/audit_rpc.py`: số ảnh và số vật theo mức; số vật theo SKU; kích thước ảnh gốc (mong đợi 1800×1800); có đủ trường `area`, `iscrowd`, `level`, `supercategory` không; `image_id` có trùng giữa val và test không; **xác nhận nhóm ảnh** (mục 4.2); md5 trùng | Báo cáo audit lưu trong repo; chốt khóa nhóm |
+| DL1 | `tools/audit_rpc.py`: số ảnh và số vật theo mức; số vật theo SKU; kích thước ảnh gốc (mong đợi ảnh vuông, cạnh khoảng 1750–1890 px); có đủ trường `area`, `iscrowd`, `level`, `supercategory` không; `image_id` có trùng giữa val và test không; **xác nhận nhóm ảnh** (mục 4.2); md5 trùng | Báo cáo audit lưu trong repo; chốt khóa nhóm |
 | DL2 | `tools/resize.py`: thu nhỏ về 800×800 vào một thư mục duy nhất `checkout_800/` (co bbox và `area` theo; ghi lại kích thước gốc) | Vẽ bbox ngẫu nhiên trên 20 ảnh để kiểm tra; tổng số vật không đổi |
 | DL3 | `tools/make_split.py`: chia theo nhóm (mục 4.3); ghi seed, danh sách ảnh val/test và md5 các file split vào `configs/splits/` trong repo (md5 của `test_full.json` nằm trong `manifest.json` của DL5, bản sao cũng được commit) | Các điều kiện ở mục 4.3 đều đạt; chạy lại ra đúng cùng md5 |
 | DL4 | `tools/make_task_config.py`: chia lớp (mục 4.4) | Mỗi task có số SKU đúng; phân bố nhóm hàng được in ra |
@@ -534,7 +538,7 @@ Các file được dẫn chiếu (trong thư mục gốc hoặc `models/` của 
 |---|---|---|
 | B1 | `baselines/adapt.py`: fine-tune Deformable DETR toàn bộ, không dùng prompt. Chia learning rate theo nhánh có sẵn trong code gốc ([engine.py#L601-L617](https://github.com/zyt95579/PDP_IOD/blob/7702d91d595e5ceed5df333d50c68444d7075ef9/engine.py#L601-L617)): lr 1e-4, backbone 1e-5, `sampling_offsets`/`reference_points` × 0,1. Có 3 chế độ: (a) 200 lớp → **E0**; (b) task 1 → **FSA** (I1); (c) 1 lớp "sản phẩm" → detector cho E5 | Chạy được cả 3 chế độ; E0 có đầu ra đánh giá được bằng V1–V3 |
 | B2 | Cờ bật/tắt thành phần: `--use_shared`, `--use_private`, `--pseudo {none,threshold,ppg}`, `--ddl_lambda`, `--topk`, các cờ I3–I5, cờ augmentation. Thêm các cờ trả về **hành vi gốc** của từng bản sửa cho P1 (khởi tạo prompt task mới F2, gradient L_Q F4, teacher không prompt F5, cách chọn ứng viên cũ F6, prototype không lọc F7, không xáo trộn F12) | Mỗi cờ có test nhỏ; E1, E2, P1 và các ablation chỉ khác nhau ở cờ |
-| B3 | **E5 (truy xuất):** detector B1c + DINOv2 (ViT-S/14 hoặc B/14) trích đặc trưng từ vùng cắt. Mỗi SKU lưu tối đa 100 embedding (cùng ngân sách với bộ nhớ prototype của PDP); gán nhãn theo prototype hoặc kNN gần nhất; ngưỡng "không chắc" chọn trên val. Task mới chỉ cần thêm embedding, không train lại | Đánh giá được bằng V1–V3 như các phương pháp khác |
+| B3 | **E5 (truy xuất):** detector B1c + DINOv2 (ViT-S/14 hoặc B/14) trích đặc trưng từ vùng cắt. **Detector B1c (nhóm chốt 29/09, phương án b):** train class-agnostic trên ảnh train của task 1 với **mọi box** trong ảnh, không kèm tên SKU. Tức là giả định cửa hàng đánh box "sản phẩm" (không cần biết SKU) ngay từ đầu. Đây là lợi thế của E5 so với PDP (PDP chỉ có box của SKU task 1) và phải ghi rõ khi báo cáo. Mỗi SKU lưu tối đa 100 embedding (cùng ngân sách với bộ nhớ prototype của PDP); gán nhãn theo prototype hoặc kNN gần nhất; ngưỡng "không chắc" chọn trên val. Task mới chỉ cần thêm embedding, không train lại | Đánh giá được bằng V1–V3 như các phương pháp khác |
 
 ---
 
