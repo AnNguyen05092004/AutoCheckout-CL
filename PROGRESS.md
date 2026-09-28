@@ -117,20 +117,21 @@ Mọi thông tin cần để làm tiếp nằm trong file này, `IMPLEMENTATION_
   - Repo: https://github.com/AnNguyen05092004/AutoCheckout-CL (public, QĐ-7). Commit trên Mac rồi `git push`; VM chạy `git fetch` + `git reset --hard origin/main` (guide §5.1).
   - 178 test đạt trên Mac, khoảng 2 phút (`.venv/bin/python -m pytest`); 3 test kernel chỉ chạy trên GPU.
   - Lint: `.venv/bin/python -m ruff check autocheckout tools tests baselines`.
-- **Còn lại, đều cần VM:**
-  - T0.3/T0.4: chạy `scripts/setup_vm.sh`.
-  - T0.5: chạy `scripts/download_rpc.sh`, **cần `kaggle.json` của nhóm**.
-  - DL1–DL6 trên dữ liệu thật: `scripts/prepare_data.sh`, sau đó commit `configs/splits`, `configs/tasks_*.json`, `results/data_audit`.
-  - Benchmark chọn `BATCH_SIZE`; mốc G0; pilot P1–P3 và V4; mốc G1; các thí nghiệm E và A (guide §7).
-  - R5 (tùy chọn).
+- **VM (28/09):** môi trường đã cài; dữ liệu đã chuẩn bị (tập test khóa bằng md5 trong `configs/splits/`); benchmark xong (`BATCH_SIZE=4`); smoke GPU đạt → mốc G0 đạt; pilot đang chạy.
 
 ### Việc tiếp theo, theo thứ tự
 
-1. Bật VM `auto-cl` → `git clone` → chạy `setup_vm.sh`. Kiểm tra `kernel: True`, pytest xanh (có cả test kernel). Tắt VM ngay nếu chưa có dữ liệu.
-2. Benchmark (guide §7.1) với `BATCH_SIZE` 2 và 4: ghi số giây/ảnh và bộ nhớ vào plan mục 3.4 (tính lại số giờ GPU), rồi đặt `BATCH_SIZE` trong `configs/exp/common.sh`.
-3. Khi có `kaggle.json`: tải dữ liệu, chạy `prepare_data.sh`, đọc `audit.md`. Rủi ro lớn nhất là hậu tố tên file trùng nhiều giữa val2019 và test2019, làm không đủ nhóm thuần test2019 cho tập test; khi đó DL3 sẽ dừng và báo lỗi, cần quyết định lại cách chia.
-4. Pilot: P1, P2, `FSA_pilot`, P3 → V4 trên P2 → mốc G1 (plan §8).
-5. Chuyển Spot sau khi đã thử ngắt và resume trên VM (plan §3.6), rồi chạy E0, FSA, E1–E4, DET → E5, A1–A9.
+1. **Pilot đang chạy trên VM** (bắt đầu 28/09 khoảng 21:25 giờ VN), phiên tmux `pilot`, script `scripts/run_pilot.sh`: P2 → P1 → FSA_pilot → P3 → V4 trên P2 task 2.
+   - Mất khoảng 6 giờ. **VM tự tắt khi xong, kể cả khi lỗi.**
+   - Log: `/data/runs/pilot_chain.log` (mỗi thí nghiệm một dòng `exit=`), `/data/runs/<tên>.log`.
+   - Kết quả: `/data/runs/<tên>/metrics_*` và `/data/runs/P2/task_2/ppg_audit.json`.
+2. **Mốc G1 (plan §8), đánh giá trên val:**
+   - (a) P2 có tốt hơn P1 ở mAP@P của task 2 không.
+   - (b) Giây/ảnh thật; đã có 0,336 giây/ảnh cho task ≥ 2.
+   - (c) P3 so với P2 (FSA có làm giảm mAP@C của task 2 ≥ 3 điểm không).
+   - Xem thêm V4 (precision/recall của nhãn giả) và cảnh báo "classes have no prototype" trong log của P2. Smoke 1 epoch có 24/25 lớp không có prototype; nếu pilot 4 epoch vẫn thiếu nhiều thì nhánh prototype của PPG gần như không hoạt động.
+3. Nếu G1 đạt: chuyển `auto-cl` sang Spot (guide §2.5), rồi chạy FSA → E4, E0, E1, E2, E3, DET → E5, sau đó A1–A9 (guide §7).
+4. R5 (tùy chọn): tự bật lại VM khi Spot bị thu hồi.
 
 ### Lưu ý kỹ thuật
 
