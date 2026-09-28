@@ -17,6 +17,7 @@ import pytorch_lightning as pl
 from datasets.coco_eval import CocoEvaluator
 from engine import local_trainer, Evaluator
 from inference import write_predictions
+from augment import TrainAugment
 from checkpointing import ResumeCheckpoint, remove_resume_checkpoints, resume_path
 from autocheckout.runinfo import RunInfo
 
@@ -235,6 +236,9 @@ def get_args_parser():
     parser.add_argument('--freeze_shared_after_task1', default=0, type=int,
                         help='I5: from task 2 on, also freeze input_proj, query_tf, query_position_embeddings, '
                              'reference_points, level_embed and bbox_embed')
+    parser.add_argument('--augment', default=0, type=int,
+                        help='I2: training augmentation (90-degree rotations, colour jitter, shortest edge 640-800)')
+    parser.add_argument('--augment_flip', default=0, type=int, help='I2: also random horizontal flips')
     parser.add_argument('--use_shared', default=1, type=int, help='B2: use the shared prompt pool')
     parser.add_argument('--use_private', default=1, type=int, help='B2: use the private (per-class) prompt pool')
     parser.add_argument('--proto_correct_only', default=1, type=int,
@@ -342,7 +346,9 @@ def run_task(args, task_id, output_root, processor):
                                 num_workers=args.num_workers)
     train_dataloader = None
     if not args.predict_only:
-        train_dataset = CocoDetection(img_folder=args.train_img_dir, ann_file=tr_ann, processor=processor)
+        augment = TrainAugment(flip=bool(args.augment_flip)) if args.augment else None
+        train_dataset = CocoDetection(img_folder=args.train_img_dir, ann_file=tr_ann, processor=processor,
+                                      augment=augment)
         train_dataloader = make_train_loader(train_dataset, args)
 
     coco_evaluator = CocoEvaluator(val_dataset.coco, args.iou_types)

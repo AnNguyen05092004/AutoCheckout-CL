@@ -25,9 +25,10 @@ import torchvision
 from .create_coco_instance import create_task_json, task_info_coco,task_info_voc,task_info_rpc
 
 class CocoDetection(torchvision.datasets.CocoDetection):
-    def __init__(self, img_folder, ann_file, processor):
+    def __init__(self, img_folder, ann_file, processor, augment=None):
         super(CocoDetection, self).__init__(img_folder, ann_file)
         self.processor = processor
+        self.augment = augment  # I2: training augmentation (see augment.py); None for evaluation
         
     def collate_fn(self, batch):
         pixel_values = [item[0] for item in batch]
@@ -44,10 +45,14 @@ class CocoDetection(torchvision.datasets.CocoDetection):
         # read in PIL image and target in COCO format
         img, target = super(CocoDetection, self).__getitem__(idx)
         image_id = self.ids[idx]
+        size = {}
+        if self.augment is not None:
+            img, target, processor_size = self.augment(img, target)
+            size = {'size': processor_size}
         target = {'image_id': image_id, 'annotations': target}
         
         # preprocess image and target (converting target to DETR format, resizing + normalization of both image and target)
-        encoding = self.processor(images=img, annotations=target, return_tensors="pt")
+        encoding = self.processor(images=img, annotations=target, return_tensors="pt", **size)
         pixel_values = encoding["pixel_values"].squeeze() # remove batch dimension
         target = encoding["labels"][0] # remove batch dimension
         
