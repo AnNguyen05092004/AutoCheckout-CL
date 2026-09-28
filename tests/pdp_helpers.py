@@ -21,7 +21,8 @@ def task_config_dict(sizes=RPC_SIZES, reserved=RPC_RESERVED, name="toy") -> dict
         rpc_id += size
     if reserved:
         tasks.append({"task_id": len(sizes) + 1, "offset": offset, "reserved": True, "classes": [
-            {"label": offset + i, "name": f"reserved_{offset + i}", "rpc_category_id": None} for i in range(reserved)]})
+            {"label": offset + i, "name": f"reserved_{offset + i}", "rpc_category_id": None}
+            for i in range(reserved)]})
     return {"name": name, "seed": 0, "tasks": tasks}
 
 

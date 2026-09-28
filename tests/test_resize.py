@@ -3,11 +3,12 @@ from collections import defaultdict
 
 import pytest
 from PIL import Image
-from synth_rpc import SIDE, make_raw_rpc
 
 from autocheckout.io import load_json, save_json
 from autocheckout.rpc import SOURCES
 from tools.resize import main, merge_annotations, resize_one
+
+from synth_rpc import SIDE, make_raw_rpc
 
 SIZE = 40
 

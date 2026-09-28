@@ -21,7 +21,7 @@ Quy ước chung:
 └── tasks/<tên>/                        # DL5/DL6: file JSON cho từng task (mục 4)
 ```
 
-Trong repo (được commit): `configs/tasks_<tên>.json` (DL4, mục 3) và `configs/splits/<tên>.json` (DL3: danh sách file của val/test/train_pilot, seed, md5 các file split; train là phần còn lại).
+Trong repo (được commit): `configs/tasks_<tên>.json` (DL4, mục 3) và `configs/splits/<tên>.json` (DL3: các seed đã thử, số ảnh theo tập và mức, md5 của từng file split, danh sách ảnh của val/test/train_pilot; train là phần còn lại). Mỗi ảnh trong danh sách ghi dạng `<source>/<orig_file_name>` (ví dụ `test2019/20180827-13-42-20-204.jpg`), vì cùng một tên file có thể có ở cả val2019 lẫn test2019. Bản sao `manifest.json` của DL5 (mục 4, có md5 của `test_full.json`) cũng được commit vào `configs/splits/` để khóa tập test.
 
 ## 2. Annotation gộp `ann/checkout_800.json` (DL2)
 
@@ -68,7 +68,7 @@ Các file split (DL3) giữ nguyên cấu trúc trên và thêm `images[].group`
 
 ## 4. File JSON cho từng task (DL5, thư mục `tasks/<tên>/`)
 
-Định dạng COCO mà code PDP đọc được (`pdp/datasets/coco_hug.py`). **`category_id` là nhãn model** (0-based, giống code gốc). `categories[]` chỉ liệt kê các lớp mà file đó có nhãn. Mỗi annotation phải có `area` và `iscrowd`. `images[]` giữ nguyên `id` và mọi trường của file split (`level`, `source`, `group`, `orig_file_name`, ...) để đánh giá tách được theo mức độ đông và so khớp được dự đoán giữa các file.
+Định dạng COCO mà code PDP đọc được (`pdp/datasets/coco_hug.py`). **`category_id` là nhãn model** (0-based, giống code gốc). `categories[]` chỉ liệt kê các lớp mà file đó có nhãn, mỗi mục có thêm `rpc_category_id`. Mỗi annotation phải có `area` và `iscrowd`. `images[]` giữ nguyên `id` và mọi trường của file split (`level`, `source`, `group`, `orig_file_name`, ...) để đánh giá tách được theo mức độ đông và so khớp được dự đoán giữa các file.
 
 | File | Ảnh | Nhãn giữ lại |
 |---|---|---|
@@ -79,6 +79,8 @@ Các file split (DL3) giữ nguyên cấu trúc trên và thêm `images[].group`
 | `val_full.json`, `test_full.json` | Toàn bộ val / test | Mọi lớp có dữ liệu (nhãn 0..199) |
 
 Mỗi thư mục có thêm `manifest.json`: tên task config, nguồn ảnh train, số ảnh và số vật mỗi file, md5 mỗi file.
+
+Ảnh train có thể đến từ nhiều nguồn (`--train-source TÊN=ĐƯỜNG_DẪN`, ví dụ `real` bây giờ, ảnh ghép sau này); mỗi ảnh train có thêm trường `train_source`. Khi thêm nguồn mới (giai đoạn 2), `id` của ảnh và annotation phải không trùng với ảnh RPC, và mỗi ảnh phải có `level` vì việc lấy mẫu `_capped` phân tầng theo trường này.
 
 ## 5. File dự đoán `pred_<split>.npz` (V1, B3)
 
@@ -100,13 +102,13 @@ Mỗi thư mục có thêm `manifest.json`: tên task config, nguồn ảnh trai
 
 ```
 /data/runs/<thí nghiệm>/
-├── run_info.json                 # R3: tham số, git hash + diff, phiên bản thư viện, md5 dữ liệu
-├── metrics_cl_<split>.json       # V2: mAP theo task, ma trận, độ quên
-├── metrics_count_<split>.json    # V3
+├── metrics_cl_<split>.json       # V2: mAP theo task, ma trận, độ quên (các khóa mô tả trong autocheckout/cl_metrics.py và tools/eval_cl.py)
+├── metrics_count_test.json       # V3: ngưỡng chọn trên val, chỉ số trên test, ngưỡng "oracle" (tools/eval_count.py)
 └── task_<t>/
     ├── task_final.pth            # F8: trọng số + prototype, không có optimizer
     ├── last.ckpt                 # R1: checkpoint resume (xóa khi task xong)
     ├── pred_val.npz, pred_test.npz
+    ├── run_info.json             # R3: tham số, git hash + diff, phiên bản thư viện, md5 dữ liệu, thời gian, bộ nhớ GPU
     ├── train.log
     └── DONE                      # đánh dấu task đã xong (R2 dựa vào đây để bỏ qua)
 ```

@@ -63,16 +63,28 @@ def pred_counts(
 ) -> np.ndarray:
     """``counts[i, c]`` = number of top1-per-query detections of ``labels[c]`` in
     ``image_ids[i]`` with score >= ``threshold``."""
-    top1 = preds.top1_per_query()
-    mask = top1.score >= threshold
-    label_index = {label: c for c, label in enumerate(labels)}
-    img_index = {image_id: i for i, image_id in enumerate(image_ids)}
+    return count_matrix(preds.top1_per_query(), image_ids, labels, threshold)
+
+
+def count_matrix(
+    top1: Predictions, image_ids: Sequence[int], labels: Sequence[int], threshold: float
+) -> np.ndarray:
+    """Like ``pred_counts`` for rows that are already one per query (``top1_per_query()``), so
+    threshold sweeps compute the top-1 rows once."""
     counts = np.zeros((len(image_ids), len(labels)), dtype=np.int64)
-    for image_id, label in zip(top1.image_id[mask].tolist(), top1.label[mask].tolist(), strict=True):
-        c = label_index.get(label)
-        i = img_index.get(image_id)
-        if c is not None and i is not None:
-            counts[i, c] += 1
+    if len(top1) == 0 or len(image_ids) == 0 or len(labels) == 0:
+        return counts
+    image_ids_arr = np.asarray(image_ids, dtype=np.int64)
+    labels_arr = np.asarray(labels, dtype=np.int64)
+    image_order = np.argsort(image_ids_arr)
+    label_order = np.argsort(labels_arr)
+    keep = top1.score >= threshold
+    rows_img, rows_label = top1.image_id[keep], top1.label[keep].astype(np.int64)
+    # position of each row's image / label in the requested lists; rows not in the lists are dropped
+    i = np.clip(np.searchsorted(image_ids_arr, rows_img, sorter=image_order), 0, len(image_ids_arr) - 1)
+    c = np.clip(np.searchsorted(labels_arr, rows_label, sorter=label_order), 0, len(labels_arr) - 1)
+    found = (image_ids_arr[image_order[i]] == rows_img) & (labels_arr[label_order[c]] == rows_label)
+    np.add.at(counts, (image_order[i[found]], label_order[c[found]]), 1)
     return counts
 
 
@@ -115,9 +127,10 @@ def select_threshold(
     only a strictly larger cAcc replaces the current best)."""
     image_ids = sorted(coco_gt.getImgIds())
     gt = gt_counts(coco_gt, image_ids, labels)
+    top1 = preds.top1_per_query()
     best_threshold, best_scores = None, None
     for threshold in thresholds:
-        scores = counting_scores(pred_counts(preds, image_ids, labels, threshold), gt)
+        scores = counting_scores(count_matrix(top1, image_ids, labels, threshold), gt)
         if best_scores is None or scores["cAcc"] > best_scores["cAcc"]:
             best_threshold, best_scores = float(threshold), scores
     return best_threshold, best_scores
@@ -128,11 +141,12 @@ def scores_by_level(
 ) -> dict[str, dict[str, float]]:
     """Counting scores at a fixed threshold, overall and broken down by ``images[].level``."""
     all_images = coco_gt.getImgIds()
-    result = {"overall": counting_scores(pred_counts(preds, all_images, labels, threshold),
+    top1 = preds.top1_per_query()
+    result = {"overall": counting_scores(count_matrix(top1, all_images, labels, threshold),
                                           gt_counts(coco_gt, all_images, labels))}
     for level in ("easy", "medium", "hard"):
         level_images = [i for i in all_images if coco_gt.imgs[i].get("level") == level]
-        result[level] = counting_scores(pred_counts(preds, level_images, labels, threshold),
+        result[level] = counting_scores(count_matrix(top1, level_images, labels, threshold),
                                          gt_counts(coco_gt, level_images, labels))
     return result
 
@@ -145,12 +159,13 @@ def oracle_by_level(coco_gt: COCO, preds: Predictions, labels: Sequence[int]) ->
     for level in ("easy", "medium", "hard"):
         subsets[level] = [i for i in all_images if coco_gt.imgs[i].get("level") == level]
 
+    top1 = preds.top1_per_query()
     result: dict[str, dict[str, Any]] = {}
     for name, image_ids in subsets.items():
         gt = gt_counts(coco_gt, image_ids, labels)
         best_threshold, best_scores = None, None
         for threshold in THRESHOLD_GRID:
-            scores = counting_scores(pred_counts(preds, image_ids, labels, threshold), gt)
+            scores = counting_scores(count_matrix(top1, image_ids, labels, threshold), gt)
             if best_scores is None or scores["cAcc"] > best_scores["cAcc"]:
                 best_threshold, best_scores = float(threshold), scores
         result[name] = {"threshold": best_threshold, **best_scores}

@@ -23,6 +23,8 @@ from typing import Any
 
 import numpy as np
 
+from autocheckout.io import default_file_mode
+
 _ARRAYS = ("image_id", "query", "label", "score", "boxes")
 
 
@@ -74,7 +76,7 @@ class Predictions:
             labels = [label_to_category[x] for x in labels]
         return [
             {"image_id": int(i), "category_id": int(c), "bbox": [float(v) for v in b], "score": float(s)}
-            for i, c, b, s in zip(self.image_id.tolist(), labels, xywh, self.score.tolist())
+            for i, c, b, s in zip(self.image_id.tolist(), labels, xywh, self.score.tolist(), strict=True)
         ]
 
 
@@ -90,6 +92,7 @@ def save_predictions(path: str | os.PathLike, predictions: Predictions) -> None:
             meta=np.array(json.dumps(predictions.meta)),
             **{name: getattr(predictions, name) for name in _ARRAYS},
         )
+        os.chmod(tmp, default_file_mode())
         os.replace(tmp, path)
     except BaseException:
         if os.path.exists(tmp):

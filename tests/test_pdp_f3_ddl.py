@@ -32,7 +32,8 @@ def test_matches_paper_formula_averaged_over_layers():
         for e in prompt.e_layers:
             getattr(prompt, f"private_p_{e}")[3] += getattr(prompt, f"shared_p_{e}")[0]
     expected = sum(
-        reference_ddl(getattr(prompt, f"shared_p_{e}").detach(), getattr(prompt, f"private_p_{e}")[:5].detach())
+        reference_ddl(getattr(prompt, f"shared_p_{e}").detach(),
+                      getattr(prompt, f"private_p_{e}")[:5].detach())
         for e in prompt.e_layers) / len(prompt.e_layers)
     assert expected > 0
     assert abs(prompt.ddl_loss_all_layers().item() - expected) < 1e-5

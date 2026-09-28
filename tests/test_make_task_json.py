@@ -3,13 +3,14 @@ from collections import Counter
 
 import pytest
 from pycocotools.coco import COCO
-from synth_rpc import CATEGORIES, make_resized_rpc
 
 from autocheckout.io import load_json, md5_file, save_json
 from autocheckout.sampling import largest_remainder
 from tools.make_split import main as make_split
 from tools.make_task_config import build_task_config
 from tools.make_task_json import combine_sources, main
+
+from synth_rpc import CATEGORIES, make_resized_rpc
 
 CAP = 20
 TASK_FILES = ("train_task_{}.json", "train_task_{}_capped.json", "train_task_{}_gt_full.json",

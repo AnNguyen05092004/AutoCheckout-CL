@@ -29,7 +29,7 @@ def test_save_load_round_trip(tmp_path):
 
 def test_top1_per_query_keeps_best_class_of_each_query():
     top1 = toy_predictions().top1_per_query()
-    rows = sorted(zip(top1.image_id.tolist(), top1.query.tolist(), top1.label.tolist()))
+    rows = sorted(zip(top1.image_id.tolist(), top1.query.tolist(), top1.label.tolist(), strict=True))
     assert rows == [(1, 0, 2), (1, 5, 0), (2, 0, 4)]
 
 
@@ -44,3 +44,14 @@ def test_empty_predictions():
     empty = Predictions([], [], [], [], np.zeros((0, 4)))
     assert len(empty.top1_per_query()) == 0
     assert empty.to_coco_results() == []
+
+
+def test_saved_files_get_normal_permissions(tmp_path):
+    import os
+
+    from autocheckout.io import default_file_mode, save_json
+
+    save_predictions(tmp_path / "p.npz", toy_predictions())
+    save_json(tmp_path / "x.json", {"a": 1})
+    for name in ("p.npz", "x.json"):
+        assert os.stat(tmp_path / name).st_mode & 0o777 == default_file_mode()

@@ -86,7 +86,8 @@ class TaskConfig:
         raise KeyError(f"label {label} outside 0..{self.num_slots - 1}")
 
     def rpc_to_label(self) -> dict[int, int]:
-        return {c.rpc_category_id: c.label for t in self.tasks for c in t.classes if c.rpc_category_id is not None}
+        return {c.rpc_category_id: c.label for t in self.tasks for c in t.classes
+                if c.rpc_category_id is not None}
 
     def label_to_rpc(self) -> dict[int, int]:
         return {label: rpc for rpc, label in self.rpc_to_label().items()}
@@ -106,7 +107,8 @@ class TaskConfig:
                     ClassInfo(
                         label=int(c["label"]),
                         name=str(c["name"]),
-                        rpc_category_id=None if c.get("rpc_category_id") is None else int(c["rpc_category_id"]),
+                        rpc_category_id=(None if c.get("rpc_category_id") is None
+                                         else int(c["rpc_category_id"])),
                         supercategory=c.get("supercategory"),
                     )
                     for c in t["classes"]
@@ -170,7 +172,8 @@ class TaskConfig:
                     raise ValueError(f"task {index}: class {info.name!r} has label {info.label}, "
                                      f"expected {task.offset + position}")
                 if task.reserved != (info.rpc_category_id is None):
-                    raise ValueError(f"task {index}: class {info.name!r} must have an RPC id iff not reserved")
+                    raise ValueError(f"task {index}: class {info.name!r} must have an RPC id "
+                                     "iff not reserved")
                 if info.rpc_category_id is not None:
                     if info.rpc_category_id in rpc_ids:
                         raise ValueError(f"RPC category {info.rpc_category_id} assigned twice")

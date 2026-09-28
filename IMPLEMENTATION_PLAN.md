@@ -365,7 +365,7 @@ Mỗi việc gồm: việc cần làm, đầu ra, và **tiêu chí nghiệm thu*
 |---|---|---|
 | DL1 | `tools/audit_rpc.py`: số ảnh và số vật theo mức; số vật theo SKU; kích thước ảnh gốc (mong đợi 1800×1800); có đủ trường `area`, `iscrowd`, `level`, `supercategory` không; `image_id` có trùng giữa val và test không; **xác nhận nhóm ảnh** (mục 4.2); md5 trùng | Báo cáo audit lưu trong repo; chốt khóa nhóm |
 | DL2 | `tools/resize.py`: thu nhỏ về 800×800 vào một thư mục duy nhất `checkout_800/` (co bbox và `area` theo; ghi lại kích thước gốc) | Vẽ bbox ngẫu nhiên trên 20 ảnh để kiểm tra; tổng số vật không đổi |
-| DL3 | `tools/make_split.py`: chia theo nhóm (mục 4.3); ghi md5 của `test_full.json` vào repo | Các điều kiện ở mục 4.3 đều đạt; chạy lại ra đúng cùng md5 |
+| DL3 | `tools/make_split.py`: chia theo nhóm (mục 4.3); ghi seed, danh sách ảnh val/test và md5 các file split vào `configs/splits/` trong repo (md5 của `test_full.json` nằm trong `manifest.json` của DL5, bản sao cũng được commit) | Các điều kiện ở mục 4.3 đều đạt; chạy lại ra đúng cùng md5 |
 | DL4 | `tools/make_task_config.py`: chia lớp (mục 4.4) | Mỗi task có số SKU đúng; phân bố nhóm hàng được in ra |
 | DL5 | `tools/make_task_json.py`: sinh các file ở mục 4.5 (nhận nhiều nguồn ảnh) | In số ảnh và số vật mỗi task; JSON đọc được bằng `CocoDetection` của code; unit test trên JSON giả nhỏ |
 | DL6 | Tập pilot: `train_pilot` 3.000 ảnh (lấy theo nhóm), cho 2 task 100+25 | Như DL5 |

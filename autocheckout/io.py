@@ -15,6 +15,13 @@ def load_json(path: str | os.PathLike) -> Any:
         return json.load(f)
 
 
+def default_file_mode() -> int:
+    """Mode a file created with open() would get (0o666 minus the umask); mkstemp uses 0o600."""
+    umask = os.umask(0)
+    os.umask(umask)
+    return 0o666 & ~umask
+
+
 def save_json(path: str | os.PathLike, obj: Any, *, indent: int | None = None) -> None:
     """Write JSON atomically: a crash (or a Spot preemption) never leaves a half-written file."""
     path = Path(path)
@@ -25,6 +32,7 @@ def save_json(path: str | os.PathLike, obj: Any, *, indent: int | None = None) -
             json.dump(obj, f, indent=indent, ensure_ascii=False)
             if indent is not None:
                 f.write("\n")
+        os.chmod(tmp, default_file_mode())
         os.replace(tmp, path)
     except BaseException:
         os.unlink(tmp)

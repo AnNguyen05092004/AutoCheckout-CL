@@ -53,7 +53,7 @@ def test_kernel_matches_pytorch_forward_and_backward():
     grad = torch.randn_like(kernel_out)
     kernel_out.backward(grad)
     torch_out.backward(grad)
-    for ours, ref in zip(tensors, reference):
+    for ours, ref in zip(tensors, reference, strict=True):
         assert torch.allclose(ours.grad, ref.grad, atol=1e-3, rtol=1e-3)
 
 

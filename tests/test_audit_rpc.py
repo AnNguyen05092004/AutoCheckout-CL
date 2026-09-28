@@ -2,10 +2,11 @@ import copy
 from collections import Counter
 
 import pytest
-from synth_rpc import SIDE, make_raw_rpc
 
 from autocheckout.io import load_json
 from tools.audit_rpc import MISSING, annotation_stats, image_rows, main
+
+from synth_rpc import SIDE, make_raw_rpc
 
 
 @pytest.fixture(scope="module")

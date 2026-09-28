@@ -11,6 +11,7 @@ from autocheckout.counting import (
     scores_by_level,
     select_threshold,
 )
+from autocheckout.predictions import Predictions
 from tests.coco_helpers import make_ann, make_gt, make_image, make_preds
 
 
@@ -146,3 +147,18 @@ def test_scores_by_level_and_oracle_by_level():
     oracle = oracle_by_level(coco_gt, preds, labels=[0])
     assert oracle["overall"]["cAcc"] == pytest.approx(1.0)
     assert oracle["overall"]["threshold"] in THRESHOLD_GRID
+
+
+def test_count_matrix_matches_a_plain_loop_on_random_rows():
+    from autocheckout.counting import count_matrix
+
+    rng = np.random.default_rng(0)
+    n = 500
+    preds = Predictions(image_id=rng.integers(1, 30, n), query=np.arange(n), label=rng.integers(0, 12, n),
+                        score=rng.random(n), boxes=np.zeros((n, 4)))
+    image_ids, labels = [3, 1, 7, 29, 100], [0, 5, 2, 11]  # unsorted, with ids/labels absent from rows
+    expected = np.zeros((len(image_ids), len(labels)), dtype=np.int64)
+    for img, lab, score in zip(preds.image_id, preds.label, preds.score, strict=True):
+        if score >= 0.3 and img in image_ids and lab in labels:
+            expected[image_ids.index(img), labels.index(lab)] += 1
+    np.testing.assert_array_equal(count_matrix(preds, image_ids, labels, 0.3), expected)

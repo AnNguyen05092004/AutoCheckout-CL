@@ -15,7 +15,8 @@ def make_config_dict(sizes=(3, 2), reserved=1):
         offset += size
     if reserved:
         tasks.append({"task_id": len(sizes) + 1, "offset": offset, "reserved": True, "classes": [
-            {"label": offset + i, "name": f"reserved_{offset + i}", "rpc_category_id": None} for i in range(reserved)
+            {"label": offset + i, "name": f"reserved_{offset + i}", "rpc_category_id": None}
+            for i in range(reserved)
         ]})
     return {"name": "toy", "seed": 0, "tasks": tasks}
 

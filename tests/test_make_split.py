@@ -1,11 +1,12 @@
 from collections import Counter, defaultdict
 
 import pytest
-from synth_rpc import make_resized_rpc
 
 from autocheckout.io import load_json, md5_file
 from autocheckout.rpc import LEVELS
 from tools.make_split import SPLITS, build_groups, choose_split, image_ids, main, objects_per_sku
+
+from synth_rpc import make_resized_rpc
 
 PARAMS = ["--test-per-level", "6", "--val-per-level", "3", "--pilot", "9",
           "--min-test-objects", "1", "--min-val-objects", "0"]
