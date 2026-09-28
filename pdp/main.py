@@ -203,6 +203,8 @@ def get_args_parser():
                         help='F3: weight of the directional decoupled loss L_DDL (paper: 0.15; 0 disables it)')
     parser.add_argument('--query_loss_grad', default=1, type=int,
                         help='F4: let the query loss L_Q back-propagate into query_tf')
+    parser.add_argument('--teacher_prompts', default=1, type=int,
+                        help='F5: teacher runs two passes with the prompts of earlier tasks (as at inference)')
     parser.add_argument('--shuffle', default=1, type=int,
                         help='F12: shuffle the training data every epoch')
     parser.add_argument('--require_kernel', default=0, type=int,
@@ -348,6 +350,11 @@ def main(args):
                 args.resume=0
             else:
                 trainer.resume(os.path.join(args.checkpoint_dir,args.checkpoint_base))
+
+        # F5: teacher = frozen copy of the model after the previous task, taken before the new
+        # task's prompts are initialised.
+        if task_id > 1 and not args.eval:
+            trainer.set_teacher()
 
         # F2: must run after set_task_id() and after the previous weights are loaded (loading would
         # otherwise overwrite the new slots with the zeros saved at the end of the previous task).

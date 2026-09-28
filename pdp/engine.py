@@ -37,7 +37,8 @@ class local_trainer(pl.LightningModule):
 		detr_config.PREV_INTRODUCED_CLS = args.task_map[task_id][1]
 		detr_config.CUR_INTRODUCED_CLS = args.task_map[task_id][2]
 		seen_classes = detr_config.PREV_INTRODUCED_CLS + detr_config.CUR_INTRODUCED_CLS
-		self.old_model = None  
+		# F5: frozen copy of the previous task's model; not registered as a submodule (see set_teacher)
+		self.__dict__['teacher'] = None
 		#### prompt arguments
 		detr_config.use_prompts = args.use_prompts
 		detr_config.n_tasks = args.n_tasks
@@ -95,6 +96,38 @@ class local_trainer(pl.LightningModule):
 	def forward(self, pixel_values, pixel_mask):
 		outputs = self.model(pixel_values=pixel_values, pixel_mask=pixel_mask)
 		return outputs
+
+	def set_teacher(self):
+		"""Freeze a copy of the current weights, i.e. the model at the end of the previous task (F5).
+
+		Call after loading the previous task's weights and before initialising the prompts of the
+		new task. The teacher only uses the prompts of earlier tasks (task_count = task_id - 2). It
+		is stored outside the module tree on purpose: it must not be trained, counted as a
+		parameter or saved in resume checkpoints (it is rebuilt from the previous task's weights).
+		"""
+		teacher = deepcopy(self.model)
+		teacher.eval()
+		for param in teacher.parameters():
+			param.requires_grad = False
+		if self.args.use_prompts:
+			teacher.model.prompts.set_task_id(self.task_id - 2)
+		self.__dict__['teacher'] = teacher
+
+	def on_fit_start(self):
+		if self.teacher is not None:
+			self.teacher.to(self.device)
+
+	@torch.no_grad()
+	def teacher_outputs(self, pixel_values, pixel_mask):
+		"""Teacher inference as at evaluation time: a first pass gives the query, the second pass
+		uses the prompts (F5). --teacher_prompts 0 restores the original single pass without prompts."""
+		self.teacher.eval()
+		outputs = self.teacher(pixel_values=pixel_values, pixel_mask=pixel_mask, train=False, task_id=self.task_id - 1)
+		if not (self.args.use_prompts and self.args.teacher_prompts):
+			return outputs
+		query = outputs.last_hidden_state if self.args.local_query else outputs.last_hidden_state.mean(dim=1)
+		return self.teacher(pixel_values=pixel_values, pixel_mask=pixel_mask, query=query, train=False,
+							task_id=self.task_id - 1)
 
 	def update_class_cache(self, cls_idx, new_query):
 
@@ -264,44 +297,13 @@ class local_trainer(pl.LightningModule):
 		labels = [{k: v.to(self.device) for k, v in t.items()} for t in batch["labels"]]
 		orig_target_sizes = torch.stack([target["orig_size"] for target in labels], dim=0)
 
-		if self.task_id > 1:
-			self.args.pre_path = getattr(self.args, 'output_dir', '').replace(f'Task_{self.task_id}',
-																			  f'Task_{self.task_id - 1}')
-		
-		if hasattr(self.args, 'pre_path') and self.args.pre_path == "/data/zyt/md-detr_prototypes/run/demo_all_coco/Task_1":
-			checkpoint_name = "checkpoint07.pth"
-		else:
-			checkpoint_name = "checkpoint07.pth"
-		
-		old_model_path = None
-		if self.task_id > 1 and hasattr(self.args, 'pre_path'):
-			old_model_path = os.path.join(self.args.pre_path, checkpoint_name)
-		elif self.task_id > 1:
-			print("Warning: Cannot determine old model path for task > 1, skipping distillation")
-		
-		old_model_outputs = None  
-		if (not self.eval_mode and self.task_id > 1 and 
-			hasattr(self.args, 'use_distillation') and self.args.use_distillation and old_model_path):
-
-			if self.task_id != getattr(self, 'old_model_task_id', 0):
-				if os.path.exists(old_model_path):
-					self.old_model = deepcopy(self.model)
-					self.old_model.load_state_dict(torch.load(old_model_path)['model'])
-					self.old_model.eval()
-					for param in self.old_model.parameters():
-						param.requires_grad = False
-					self.old_model_task_id = self.task_id
-					print(f"[One-time] Loaded old model from {old_model_path} for distillation")
-				else:
-					print(f"Warning: Old model not found at {old_model_path}")
-					self.old_model = None
-					self.old_model_task_id = self.task_id
-		
-			if self.old_model is not None:
-
-				with torch.no_grad():
-					self.old_model.eval() 
-					old_model_outputs = self.old_model(pixel_values=pixel_values, pixel_mask=pixel_mask, train=False, task_id=self.task_id - 1)
+		# F5: the teacher is built once, before training, from the weights of the previous task
+		# (see set_teacher); the original loaded a hard-coded checkpoint07.pth at the first step and
+		# silently disabled distillation and pseudo-labelling when that file was missing.
+		old_model_outputs = None
+		if (not self.eval_mode and self.task_id > 1 and self.teacher is not None and
+			hasattr(self.args, 'use_distillation') and self.args.use_distillation):
+			old_model_outputs = self.teacher_outputs(pixel_values, pixel_mask)
 		if old_model_outputs is not None:
 
 			old_results = self.processor.post_process(
