@@ -17,6 +17,7 @@ import pytorch_lightning as pl
 from datasets.coco_eval import CocoEvaluator
 from engine import local_trainer, Evaluator
 from inference import write_predictions
+from checkpointing import ResumeCheckpoint, remove_resume_checkpoints, resume_path
 # from transformers import AutoImageProcessor
 from lightning.pytorch.loggers import CSVLogger
 from lightning.pytorch import seed_everything
@@ -199,6 +200,10 @@ def get_args_parser():
     parser.add_argument('--prev_ckpt', default='', type=str,
                         help='F8: task_final.pth to start from when --start_task > 1 comes from another run')
     parser.add_argument('--accelerator', default='gpu', type=str, help="Lightning accelerator ('gpu' or 'cpu')")
+    parser.add_argument('--eff_batch_size', default=32, type=int,
+                        help='Effective batch size; gradients are accumulated to reach it (original: 32)')
+    parser.add_argument('--ckpt_every_minutes', default=30, type=float,
+                        help='R1: minutes between resume checkpoints within an epoch (also saved every epoch)')
     parser.add_argument('--predict_only', default=0, type=int,
                         help='F9/V1: skip training, load task_<t>/task_final.pth and rewrite pred_{val,test}.npz')
 
@@ -280,8 +285,10 @@ def task_dir(output_root, task_id):
 
 def make_pl_trainer(args):
     return pl.Trainer(devices=args.n_gpus, accelerator=args.accelerator, max_epochs=args.epochs,
-                      gradient_clip_val=0.1, accumulate_grad_batches=max(1, int(32/(args.n_gpus*args.batch_size))),
+                      gradient_clip_val=0.1,
+                      accumulate_grad_batches=max(1, int(args.eff_batch_size/(args.n_gpus*args.batch_size))),
                       check_val_every_n_epoch=args.eval_epochs, enable_checkpointing=False,
+                      callbacks=[ResumeCheckpoint(args.output_dir, args.ckpt_every_minutes)],
                       log_every_n_steps=args.print_freq, num_sanity_val_steps=0,
                       logger=CSVLogger(save_dir=args.output_dir, name="lightning_logs"))
 
@@ -351,8 +358,14 @@ def run_task(args, task_id, output_root, processor):
         if args.use_prompts and args.init_new_prompts:
             trainer.model.model.prompts.init_task_prompts()
 
-        make_pl_trainer(args).fit(trainer, train_dataloader, val_dataloader)
+        # R1: continue an interrupted task from its last.ckpt (weights, optimizer, scheduler, loop
+        # state, prototype memory); the steps above are cheap and keep the teacher correct.
+        ckpt_path = resume_path(args.output_dir)
+        if ckpt_path:
+            print(f'Resuming task {task_id} from {ckpt_path}', file=args.log_file)
+        make_pl_trainer(args).fit(trainer, train_dataloader, val_dataloader, ckpt_path=ckpt_path)
         trainer.save_task_final(final_path)
+        remove_resume_checkpoints(args.output_dir)
 
     write_task_predictions(args, trainer, task_id, processor)
     args.log_file.close()

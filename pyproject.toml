@@ -30,4 +30,4 @@ select = ["E", "F", "W", "I", "B", "UP"]
 [tool.ruff.lint.isort]
 known-first-party = ["autocheckout", "tools"]
 # modules imported from pdp/ (on sys.path in tests) and test helpers
-known-local-folder = ["main", "engine", "inference", "ppg", "models", "datasets", "utils", "pdp_helpers", "coco_helpers", "synth_rpc"]
+known-local-folder = ["main", "engine", "inference", "ppg", "checkpointing", "models", "datasets", "utils", "pdp_helpers", "coco_helpers", "synth_rpc"]

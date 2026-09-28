@@ -511,7 +511,8 @@ class local_trainer(pl.LightningModule):
 			return False
 		return self.current_epoch == self.args.epochs - 1
 	def on_train_epoch_end(self):
-		self.lr_scheduler.step()
+		# R1: the scheduler is stepped by Lightning (configure_optimizers), so it is saved and restored
+		# with resume checkpoints.
 		
 		# F8: no full checkpoint (0.5 GiB with optimizer state) every epoch any more; the task's
 		# final weights are written once by save_task_final().
@@ -560,6 +561,24 @@ class local_trainer(pl.LightningModule):
 					for id in image_ids[0:self.args.num_imgs_viz]:
 						self.evaluator.vizualize(id=id)
 	
+	def on_save_checkpoint(self, checkpoint):
+		# R1: the prototype memory is not a parameter; keep it in resume checkpoints (the teacher is not
+		# saved: it is rebuilt from the previous task's task_final.pth).
+		checkpoint['pdp_state'] = {
+			'class_query_cache': self.class_query_cache,
+			'class_prototypes': self.class_prototypes,
+			'class_cache_count': self.class_cache_count,
+			'batch_counter': self.batch_counter,
+		}
+
+	def on_load_checkpoint(self, checkpoint):
+		state = checkpoint['pdp_state']
+		self.class_query_cache = state['class_query_cache']
+		self.class_prototypes = state['class_prototypes']
+		self.class_cache_count = state['class_cache_count']
+		self.batch_counter = state['batch_counter']
+		self._old_prototypes = None
+
 	def save_task_final(self, path):
 		"""Weights and prototype memory at the end of the task, without optimizer state (F8).
 
@@ -683,7 +702,7 @@ class local_trainer(pl.LightningModule):
 
 		self.lr_scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, self.args.lr_drop)
 
-		return self.optimizer
+		return {'optimizer': self.optimizer, 'lr_scheduler': {'scheduler': self.lr_scheduler, 'interval': 'epoch'}}
 
 	def train_dataloader(self):
 		return self.train_dataloader
