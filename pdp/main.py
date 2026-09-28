@@ -228,6 +228,8 @@ def get_args_parser():
     parser.add_argument('--pseudo_thresh_high', default=0.5, type=float, help='PPG tau_h (paper: 0.5)')
     parser.add_argument('--pseudo_thresh_low', default=0.2, type=float, help='PPG tau_l (paper: 0.2)')
     parser.add_argument('--prototype_sim_thresh', default=0.5, type=float, help='PPG theta_s (paper: 0.5)')
+    parser.add_argument('--use_shared', default=1, type=int, help='B2: use the shared prompt pool')
+    parser.add_argument('--use_private', default=1, type=int, help='B2: use the private (per-class) prompt pool')
     parser.add_argument('--proto_correct_only', default=1, type=int,
                         help='F7: prototypes only from queries whose predicted class is the GT class')
     parser.add_argument('--shuffle', default=1, type=int,

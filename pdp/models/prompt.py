@@ -18,6 +18,11 @@ class Prompt(nn.Module):
         # F2: one private prompt per class slot of every task. The original hard-coded 80 COCO
         # classes here, which breaks (index errors or empty task pools) for other class splits.
         self.task_num_classes = list(task_num_classes)
+        # B2: pools used in forward(); both by default (the paper's dual pool)
+        self.use_shared = bool(getattr(args, 'use_shared_pool', True))
+        self.use_private = bool(getattr(args, 'use_private_pool', True))
+        if not (self.use_shared or self.use_private):
+            raise ValueError('at least one prompt pool must be used')
         self.total_classes = sum(self.task_num_classes)
         self._init_smart(emb_d, prompt_param)
         #print(prompt_param)
@@ -275,10 +280,12 @@ class Prompt(nn.Module):
             K_private = K[0:f]
             A_private = A[0:f]
             P_private = p[0:f]
-        # combine
-        K = torch.cat([K_shared, K_private], dim=0)
-        A = torch.cat([A_shared, A_private], dim=0)
-        P = torch.cat([P_shared, P_private], dim=0)
+        # combine (B2: either pool can be left out for ablations)
+        pools = [(K_shared, A_shared, P_shared)] if self.use_shared else []
+        pools += [(K_private, A_private, P_private)] if self.use_private else []
+        K = torch.cat([k for k, _, _ in pools], dim=0)
+        A = torch.cat([a for _, a, _ in pools], dim=0)
+        P = torch.cat([q for _, _, q in pools], dim=0)
 
         # ---- attention and cosine sim ----
         a_querry = torch.einsum('bd,kd->bkd', x_querry, A)

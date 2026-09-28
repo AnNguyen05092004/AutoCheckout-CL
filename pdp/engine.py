@@ -49,6 +49,8 @@ class local_trainer(pl.LightningModule):
 		detr_config.prompt_len = args.prompt_len
 		detr_config.local_query = args.local_query
 		detr_config.task_num_classes = args.task_num_classes
+		detr_config.use_shared_pool = args.use_shared
+		detr_config.use_private_pool = args.use_private
 
 		self.invalid_cls_logits = list(range(seen_classes, args.n_classes-1)) #unknown class indx will not be included in the invalid class range
 		self.seen_classes = seen_classes
@@ -445,7 +447,8 @@ class local_trainer(pl.LightningModule):
 		loss = outputs.loss
 		loss_dict = outputs.loss_dict
 
-		if self.training and self.args.use_prompts and getattr(self.args, 'ddl_lambda', 0) > 0:
+		if (self.training and self.args.use_prompts and getattr(self.args, 'ddl_lambda', 0) > 0
+				and self.args.use_shared and self.args.use_private):  # L_DDL needs both pools
 			# F3: L_DDL was never applied in the original code (disabled flag, and the decoder
 			# discarded the loss returned by the prompt module).
 			ddl_loss = self.model.model.prompts.ddl_loss_all_layers()
