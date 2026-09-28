@@ -161,6 +161,7 @@ Mọi thông tin cần để làm tiếp nằm trong file này, `IMPLEMENTATION_
   - Thứ tự: `FSA_pilot_eb4` → `P2_eb4` → `P3_eb4`. Giống FSA_pilot/P2/P3 nhưng batch hiệu dụng 4 (không gộp gradient), tức gấp 8 lần số bước với cùng lượng tính toán. Tổng khoảng 5 giờ.
   - **VM tự tắt khi hết hàng đợi.**
   - **Đã đổi `configs/exp/common.sh` sang batch hiệu dụng 4** cho mọi thí nghiệm sau pilot (plan phụ lục C). Không tốn thêm GPU. P1, P2, P3 và FSA_pilot ghim lại batch 32 như lúc chạy.
+  - **FSA xong (23:39 UTC 28/09):** 6.000 ảnh × 6 epoch, 9.000 bước. Val mAP50 **0,984** (AP 0,810); test cAcc 0,684, mCIoU 0,93 trên 100 lớp task 1; `ce` cuối khoảng 0,03. `hf_model` có 225 nhãn, sẵn cho E4. Khoảng 16 phút/epoch.
   - **Đã thêm `FSA` và `DET` vào cuối hàng đợi.** Cả hai là fine-tune toàn bộ, đã được FSA_pilot_eb4 kiểm chứng, cần cho E4 và E5. Khoảng 2 giờ mỗi cái; dự kiến hàng đợi xong khoảng 02:00 UTC ngày 29/09.
   - Câu hỏi cần trả lời: với đủ bước, PDP và fine-tune toàn bộ đạt mAP bao nhiêu trên pilot? Prototype có đủ lớp không? Kết quả quyết định cấu hình train (batch hiệu dụng, số epoch) cho E0–E4, **cần nhóm chốt** vì ảnh hưởng ngân sách GPU.
 
