@@ -203,6 +203,8 @@ def get_args_parser():
                         help='F3: weight of the directional decoupled loss L_DDL (paper: 0.15; 0 disables it)')
     parser.add_argument('--query_loss_grad', default=1, type=int,
                         help='F4: let the query loss L_Q back-propagate into query_tf')
+    parser.add_argument('--shuffle', default=1, type=int,
+                        help='F12: shuffle the training data every epoch')
     parser.add_argument('--require_kernel', default=0, type=int,
                         help='F11: fail if the CUDA kernel of deformable attention cannot be loaded')
 
@@ -220,6 +222,12 @@ def get_args_parser():
     
     return parser
 
+def make_train_loader(dataset, args):
+    # F12: shuffle explicitly. The original relied on the DistributedSampler that Lightning adds on
+    # several GPUs; on one GPU Lightning keeps a SequentialSampler, i.e. the same order every epoch.
+    # The order stays reproducible through seed_everything().
+    return DataLoader(dataset, collate_fn=dataset.collate_fn, batch_size=args.batch_size,
+                      num_workers=args.num_workers, pin_memory=True, shuffle=bool(args.shuffle))
 
 def check_kernel(args):
     import models.modeling_deformable_detr as detr_module
@@ -302,8 +310,7 @@ def main(args):
         test_dataset = CocoDetection(img_folder=args.test_img_dir, 
                                     ann_file=tst_ann, processor=processor)
         
-        train_dataloader = DataLoader(train_dataset, collate_fn=train_dataset.collate_fn, batch_size=args.batch_size,
-                                  num_workers=args.num_workers, pin_memory=True)
+        train_dataloader = make_train_loader(train_dataset, args)
         
         test_dataloader = DataLoader(test_dataset, collate_fn=test_dataset.collate_fn, batch_size=args.batch_size,
                                  num_workers=args.num_workers)
