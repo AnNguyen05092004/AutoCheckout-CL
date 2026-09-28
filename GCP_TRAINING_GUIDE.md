@@ -316,8 +316,11 @@ python -m tools.summarize --runs /data/runs/E0 /data/runs/E1 /data/runs/E2 /data
 Tóm tắt nhanh bằng một lệnh: trạng thái VM, thí nghiệm nào đã xong, tiến độ hiện tại, GPU, dung lượng ổ.
 
 ```bash
-bash scripts/vm_status.sh
+bash scripts/vm_status.sh           # tóm tắt một lần
+bash scripts/vm_status.sh follow    # xem trực tiếp output của thí nghiệm đang chạy; Ctrl+C chỉ dừng việc xem
 ```
+
+`scripts/run_pilot.sh` ghi output của từng thí nghiệm vào `/data/runs/<tên>.log`, không in ra cửa sổ tmux, nên `tmux attach -t pilot` chỉ thấy màn hình trống. Muốn xem thì dùng `follow`. Khi chạy `run_exp.sh` trực tiếp trong tmux (mục 7.2) thì output hiện trong tmux.
 
 Các lệnh riêng lẻ:
 

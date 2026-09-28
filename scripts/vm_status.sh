@@ -1,12 +1,20 @@
 #!/usr/bin/env bash
 # Status of the VM and of the runs, from the Mac (read-only: never touches the jobs).
 #
-#   bash scripts/vm_status.sh
+#   bash scripts/vm_status.sh           # one-off summary
+#   bash scripts/vm_status.sh follow    # live output of the running experiment; Ctrl+C only stops watching
+#
+# The pilot chain writes each experiment's output to /data/runs/<name>.log, not to its tmux window,
+# so `tmux attach` shows an empty screen: follow the log instead.
 set -uo pipefail
 GC=(--zone=us-central1-c --project=project-95a0d104-9d0f-4aa1-ba0)
 status=$(gcloud compute instances describe auto-cl "${GC[@]}" --format="value(status)")
 echo "VM auto-cl: $status"
 [[ $status == RUNNING ]] || exit 0
+if [[ ${1:-} == follow ]]; then
+    exec gcloud compute ssh auto-cl "${GC[@]}" -- -t \
+        'latest=$(ls -t /data/runs/*.log | grep -v -e pilot_chain -e ppg_audit | head -1); echo "== $latest"; tail -n 5 -F "$latest"'
+fi
 gcloud compute ssh auto-cl "${GC[@]}" --command '
     echo "== chain (one line per finished experiment)"; cat /data/runs/pilot_chain.log 2>/dev/null || echo "(none)"
     latest=$(ls -t /data/runs/*.log 2>/dev/null | grep -v -e pilot_chain -e ppg_audit | head -1)
