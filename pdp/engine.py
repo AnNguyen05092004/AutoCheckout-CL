@@ -1,5 +1,6 @@
 import os
 import sys
+import math
 import pdb
 import tqdm
 import torch
@@ -21,6 +22,17 @@ from models.configuration_deformable_detr import DeformableDetrConfig
 from models.modeling_deformable_detr import DeformableDetrForObjectDetection
 from ppg import prototype_matrix, select_candidates, select_pseudo_labels
 from inference import predict_batch
+
+PRIOR_PROB = 0.01  # focal-loss prior of the classifier (Deformable DETR / RetinaNet)
+
+
+def classifier_from_checkpoint(repo_name, num_labels):
+	"""True if --repo_name holds a classifier of this size, i.e. from_pretrained loads it as it is."""
+	if not repo_name:
+		return False
+	from models.configuration_deformable_detr import DeformableDetrConfig as Config
+	return Config.from_pretrained(repo_name).num_labels == num_labels
+
 
 # I5: name components of the parameters shared by every task (besides the frozen backbone/encoder/decoder)
 SHARED_AFTER_TASK1 = ['input_proj', 'query_tf', 'query_position_embeddings', 'reference_points', 'level_embed', 'bbox_embed']
@@ -68,6 +80,14 @@ class local_trainer(pl.LightningModule):
 												 log_file=args.log_file)
 			
 			self.processor = DeformableDetrImageProcessor()
+
+		# F13: Hugging Face's weight initialisation (post_init, and the re-initialisation of the classifier
+		# when the class count differs from the checkpoint) zeroes the classifier bias, overriding the
+		# focal-loss prior set in DeformableDetrForObjectDetection.__init__: every class then starts at
+		# p = 0.5 on every query. Restore the prior unless the classifier comes from the checkpoint.
+		if args.prior_init_classifier and not classifier_from_checkpoint(args.repo_name, args.n_classes):
+			for head in self.model.class_embed:
+				nn.init.constant_(head.bias, -math.log((1 - PRIOR_PROB) / PRIOR_PROB))
 		
 		self.task_id = task_id
 		self.lr = args.lr

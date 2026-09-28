@@ -50,6 +50,7 @@ Trạng thái: **Xong** = đạt tiêu chí nghiệm thu trong plan; **Đang là
 | F10 | Xong (28/09) | Bảng tham số train theo nhóm/lr trong log; model thật 69,12M / 35,00M đúng như plan. `tests/test_pdp_f10_parameters.py` |
 | F11 | Xong (28/09) | Kernel nạp được trên L4, khớp bản PyTorch (forward ≤ 1e-4, gradient), 0,07–0,10 ms so với 1,7–1,9 ms |
 | F12 | Xong (28/09) | `shuffle=True`; thứ tự khác giữa 2 epoch, tái lập theo seed; `tests/test_pdp_f12_shuffle.py` |
+| F13 | Xong (28/09) | Prior của focal loss cho classifier (HuggingFace đặt bias về 0 → p = 0,5); phát hiện ở pilot; `tests/test_pdp_f13_prior_init.py` |
 
 ### Giai đoạn 3–6: hạ tầng chạy, đánh giá, cải tiến, baseline
 
@@ -101,6 +102,7 @@ Trạng thái: **Xong** = đạt tiêu chí nghiệm thu trong plan; **Đang là
   - DL1 cho thấy cấu trúc nhóm khác giả thuyết → sửa DL2, DL3.
   - Chuẩn bị dữ liệu xong; tập test đã khóa.
   - Benchmark: 0,336 giây/ảnh (batch 4) → khoảng 17 giờ L4 cho mỗi lần chạy 5 task ở cấu hình chuẩn.
+  - Smoke GPU trên ảnh thật đạt (R4) → mốc G0 đạt. Bắt đầu pilot, dừng sau 5 phút vì `loss_ce` khoảng 730 → phát hiện và sửa F13, rồi chạy lại pilot.
   - Ghi chú: vài commit message đã đẩy lên ghi nhầm "29/09"; đúng là 28/09 (tài liệu đã sửa).
 - **28/09/2026**: nhóm chốt E5 = phương án b; giữ 14 snapshot ổ cũ; đẩy repo lên GitHub (public). Xong R1, R2, R3, I1–I5, B1, B2, V4, V5 (code), cấu hình mọi thí nghiệm, script VM, viết lại guide; V2 nhanh hơn khoảng 5 lần (chính xác tuyệt đối). 178 test đạt.
 - 28/09: nhóm chốt E5 = phương án b; giữ 14 snapshot ổ cũ. Kiểm tra nguồn dữ liệu: mirror HuggingFace thiếu tên file và `level`, nên vẫn cần Kaggle. Ảnh quầy RPC không cố định 1800 px (khoảng 1750–1890, vuông); DL2 đã xử lý theo từng ảnh.

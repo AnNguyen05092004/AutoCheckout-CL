@@ -511,6 +511,14 @@ Các file được dẫn chiếu (trong thư mục gốc hoặc `models/` của 
 - *Sửa:* thêm `shuffle=True` cho DataLoader train (thứ tự vẫn tái lập được nhờ `seed_everything`).
 - *Nghiệm thu:* hai epoch liên tiếp có thứ tự khác nhau; cùng seed thì chạy lại ra cùng thứ tự.
 
+**F13: Khởi tạo prior cho đầu phân loại** (phát hiện khi chạy pilot trên L4, 28/09)
+- *Hiện trạng:*
+  - Code đặt bias của classifier theo prior của focal loss (p = 0,01) trong `DeformableDetrForObjectDetection.__init__`. Nhưng hàm khởi tạo trọng số của HuggingFace chạy **sau đó** và đặt mọi bias `Linear` về 0: `post_init()` khi tạo model mới, và bước khởi tạo lại lớp lệch kích thước khi nạp checkpoint COCO 91 lớp vào model 225 lớp.
+  - Hậu quả: mọi lớp bắt đầu ở p = 0,5 trên mọi query. `loss_ce` khởi đầu khoảng 730 (bình thường vài đơn vị); model coi gần như cả 300 query là có vật.
+  - Với AdamW, bias chỉ dịch khoảng lr = 1e-4 mỗi bước, nên trong khoảng 1.100 bước của cấu hình chuẩn nó không thể tự về gần −4,6.
+- *Sửa:* đặt lại bias = −log(0,99/0,01) khi đầu phân loại không được nạp nguyên từ checkpoint (model mới, hoặc số lớp khác checkpoint). Cờ `--prior_init_classifier 0` giữ hành vi gốc (P1).
+- *Nghiệm thu:* model mới và checkpoint khác số lớp thì bias = prior; checkpoint cùng số lớp (FSA) giữ nguyên bias đã train (`tests/test_pdp_f13_prior_init.py`).
+
 ### 6.4 Giai đoạn 3: hạ tầng chạy
 
 | ID | Việc | Nghiệm thu |
@@ -700,4 +708,5 @@ G2 → A1–A9 → V5, V6 → (demo) → báo cáo → G3
 | Dữ liệu | Ảnh quầy RPC vuông nhưng cạnh 1750–1890 px (không cố định 1800); mirror HuggingFace thiếu tên file và `level` → bắt buộc dùng Kaggle | Kiểm tra 28/09 |
 | QĐ-7 | Đổi thành đẩy public, ghi nguồn; VM lấy code bằng `git` | 28/09 |
 | Test CPU | Ảnh test 96 px (ở 64 px, batch 1 ảnh làm GroupNorm backward trên CPU lỗi) | Không ảnh hưởng ảnh 800 px |
+| F13 | Bias của classifier luôn bị HuggingFace đặt về 0 (p = 0,5), xóa mất prior của focal loss → thêm F13 | Phát hiện qua `loss_ce` khoảng 730 ở phút đầu của pilot; đã dừng pilot, sửa, chạy lại |
 | Cấu hình | `configs/exp/*.sh` cho mọi thí nghiệm của mục 7 (P1–P3, FSA_pilot, E0, FSA, DET, E1–E4, A1–A9) | Test parse mọi file |

@@ -251,6 +251,8 @@ def get_args_parser():
     parser.add_argument('--augment_flip', default=0, type=int, help='I2: also random horizontal flips')
     parser.add_argument('--use_shared', default=1, type=int, help='B2: use the shared prompt pool')
     parser.add_argument('--use_private', default=1, type=int, help='B2: use the private (per-class) prompt pool')
+    parser.add_argument('--prior_init_classifier', default=1, type=int,
+                        help='F13: focal-loss prior (p=0.01) for a classifier not loaded from the checkpoint')
     parser.add_argument('--proto_correct_only', default=1, type=int,
                         help='F7: prototypes only from queries whose predicted class is the GT class')
     parser.add_argument('--shuffle', default=1, type=int,
