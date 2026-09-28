@@ -102,6 +102,7 @@ Mỗi thư mục có thêm `manifest.json`: tên task config, nguồn ảnh trai
 
 ```
 /data/runs/<thí nghiệm>/
+├── config.sh                     # bản sao file cấu hình thí nghiệm (configs/exp/<tên>.sh)
 ├── metrics_cl_<split>.json       # V2: mAP theo task, ma trận, độ quên (các khóa mô tả trong autocheckout/cl_metrics.py và tools/eval_cl.py)
 ├── metrics_count_test.json       # V3: ngưỡng chọn trên val, chỉ số trên test, ngưỡng "oracle" (tools/eval_count.py)
 └── task_<t>/
@@ -109,6 +110,8 @@ Mỗi thư mục có thêm `manifest.json`: tên task config, nguồn ảnh trai
     ├── last.ckpt                 # R1: checkpoint resume (xóa khi task xong)
     ├── pred_val.npz, pred_test.npz
     ├── run_info.json             # R3: tham số, git hash + diff, phiên bản thư viện, md5 dữ liệu, thời gian, bộ nhớ GPU
-    ├── train.log
-    └── DONE                      # đánh dấu task đã xong (R2 dựa vào đây để bỏ qua)
+    ├── train.log, lightning_logs/
+    └── (last.ckpt, last.ckpt.prev khi task đang dở; tự xóa khi task xong)
+
+Task được coi là xong khi có `task_final.pth` và cả hai file dự đoán; `scripts/run_exp.sh` dựa vào đó để bỏ qua task hoặc chỉ ghi lại dự đoán.
 ```
