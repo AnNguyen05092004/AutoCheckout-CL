@@ -78,7 +78,8 @@ def audit(trainer, loader, config, device):
                 scores[i], cand_labels[i], boxes[i], features, prototypes, valid, mode=args.pseudo,
                 tau_high=args.pseudo_thresh_high, tau_low=args.pseudo_thresh_low,
                 sim_thresh=args.prototype_sim_thresh, nearest_prototype=bool(args.prototype_nearest),
-                gt_boxes=gt_boxes[current].to(device), gt_iou=args.pseudo_gt_iou, return_keep=True)
+                gt_boxes=gt_boxes[current].to(device), gt_iou=args.pseudo_gt_iou, dedup_iou=args.pseudo_dedup_iou,
+                return_keep=True)
             kept_scores = scores[i][keep]
             is_high = (kept_scores > args.pseudo_thresh_high).cpu()
             outcomes, matched = match_pseudo_labels(
@@ -115,7 +116,8 @@ def audit(trainer, loader, config, device):
                            for (p, t), n in confusions.most_common(30)],
         'wrong_class_same_supercategory_share': round(same_super / sum(confusions.values()), 4) if confusions else None,
         'settings': {k: getattr(args, k) for k in ('pseudo', 'pseudo_topk', 'pseudo_thresh_high', 'pseudo_thresh_low',
-                                                   'prototype_sim_thresh', 'prototype_nearest', 'pseudo_gt_iou')},
+                                                   'prototype_sim_thresh', 'prototype_nearest', 'pseudo_gt_iou',
+                                                   'pseudo_dedup_iou')},
     }
 
 

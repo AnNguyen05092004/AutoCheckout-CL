@@ -335,7 +335,7 @@ class local_trainer(pl.LightningModule):
 				scores[i], cand_labels[i], boxes[i], features, prototypes, valid, mode=self.args.pseudo,
 				tau_high=self.args.pseudo_thresh_high, tau_low=self.args.pseudo_thresh_low,
 				sim_thresh=self.args.prototype_sim_thresh, nearest_prototype=bool(self.args.prototype_nearest),
-				gt_boxes=target['boxes'], gt_iou=self.args.pseudo_gt_iou)
+				gt_boxes=target['boxes'], gt_iou=self.args.pseudo_gt_iou, dedup_iou=self.args.pseudo_dedup_iou)
 			target['class_labels'] = torch.cat([target['class_labels'], new_labels.to(target['class_labels'].dtype)])
 			target['boxes'] = torch.cat([target['boxes'], new_boxes.to(target['boxes'].dtype)])
 		return labels

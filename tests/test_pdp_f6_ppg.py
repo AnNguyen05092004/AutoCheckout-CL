@@ -74,7 +74,8 @@ def test_trainer_appends_pseudo_labels_to_targets():
         PREV_INTRODUCED_CLS=PREV, device=torch.device("cpu"), _old_prototypes=None,
         class_prototypes={c: torch.zeros(4) for c in range(NUM_CLASSES)},
         args=SimpleNamespace(pseudo_topk=50, pseudo="ppg", pseudo_thresh_high=0.5, pseudo_thresh_low=0.2,
-                             prototype_sim_thresh=0.5, prototype_nearest=0, pseudo_gt_iou=0.0))
+                             prototype_sim_thresh=0.5, prototype_nearest=0, pseudo_gt_iou=0.0,
+                             pseudo_dedup_iou=0.0))
     targets = [{"class_labels": torch.tensor([3]), "boxes": torch.tensor([[0.5, 0.5, 0.1, 0.1]])}]
     engine.local_trainer.add_pseudo_labels(trainer, teacher_out, targets)
     # both candidates score 0.9: their order is not defined, so compare (label, box) pairs
@@ -120,3 +121,21 @@ def test_i4_requires_the_nearest_prototype_to_be_the_proposed_class():
     _, nearest = select_pseudo_labels(scores[0], labels[0], cand_boxes[0], feats, protos, valid,
                                       nearest_prototype=True, **common)
     assert plain.tolist() == [1] and nearest.tolist() == []
+
+
+def test_f14_keeps_one_pseudo_label_per_object():
+    """A secondary query on an object already labelled passes the prototype check; F14 drops it."""
+    logits, boxes, features = fake_teacher({0: (1, 0.9), 1: (1, 0.4), 2: (2, 0.9)})
+    boxes[0, 1] = boxes[0, 0] + torch.tensor([0.004, 0.0, 0.0, 0.0])  # query 1: same object as query 0
+    features[0, 1] = features[0, 0]
+    prototypes = {0: torch.randn(4), 1: features[0, 0].clone(), 2: torch.randn(4)}
+    protos, valid = prototype_matrix(prototypes, PREV, "cpu")
+    scores, labels, queries, cand_boxes = select_candidates(logits, boxes, PREV, topk=3)
+    feats = features[0, queries[0]]
+    kwargs = dict(mode="ppg", tau_high=0.5, tau_low=0.2, sim_thresh=0.5)
+    _, off = select_pseudo_labels(scores[0], labels[0], cand_boxes[0], feats, protos, valid, **kwargs)
+    assert sorted(off.tolist()) == [1, 1, 2]  # the duplicate is accepted by the prototype branch
+    kept_boxes, on = select_pseudo_labels(scores[0], labels[0], cand_boxes[0], feats, protos, valid,
+                                          dedup_iou=0.5, **kwargs)
+    assert sorted(on.tolist()) == [1, 2]  # the higher-scoring label of the object stays, the other object too
+    assert any(torch.equal(box, boxes[0, 0]) for box in kept_boxes)

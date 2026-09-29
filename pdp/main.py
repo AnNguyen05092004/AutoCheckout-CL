@@ -233,6 +233,9 @@ def get_args_parser():
     parser.add_argument('--prototype_sim_thresh', default=0.5, type=float, help='PPG theta_s (paper: 0.5)')
     parser.add_argument('--pseudo_gt_iou', default=0.0, type=float,
                         help='I3: drop pseudo-labels overlapping a current-task GT box with IoU >= this (0 = off)')
+    parser.add_argument('--pseudo_dedup_iou', default=0.0, type=float,
+                        help='F14: at most one pseudo-label per object, class-agnostic NMS at this IoU (0 = off, '
+                             'as the paper; duplicates compound over the tasks)')
     parser.add_argument('--prototype_nearest', default=0, type=int,
                         help='I4: prototype-verified candidates must have their own class as nearest prototype')
     parser.add_argument('--freeze_shared_after_task1', default=0, type=int,
