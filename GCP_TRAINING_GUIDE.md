@@ -100,6 +100,8 @@ gcloud compute instances set-scheduling auto-cl "${GC[@]}" \
 gcloud compute instances start auto-cl "${GC[@]}"
 ```
 
+Thiếu `--preemptible` thì API từ chối với lỗi `preemptible=false and provisioning_model=SPOT is contradicting` (gặp ngày 29/09).
+
 Lưu ý khi chạy Spot (chi tiết ở mục 3.6 của plan):
 
 - Tốc độ không đổi.
