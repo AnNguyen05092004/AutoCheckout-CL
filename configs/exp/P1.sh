@@ -8,5 +8,5 @@ N_TASKS=2
 ARGS=("${COMMON_ARGS[@]}" --task_ann_dir "$TASK_DIR" --epochs 4
     --init_new_prompts 0 --ddl_lambda 0 --query_loss_grad 0 --teacher_prompts 0 --ppg_legacy 1
     --bg_thres_topk 5 --proto_correct_only 0 --shuffle 0 --prior_init_classifier 0)
-# Run on 28/09 with the effective batch of the original code (common.sh now uses 4).
-ARGS+=(--eff_batch_size 32)
+# Run on 28/09 with the effective batch of the original code and without TF32 (common.sh now uses 4 and TF32).
+ARGS+=(--eff_batch_size 32 --tf32 0)

@@ -9,6 +9,8 @@ from pdp_helpers import main_args
 
 # Pilot configs keep the effective batch they were run with on 28/09; everything else uses 4.
 PILOT_EFF_BATCH_32 = {"P1", "P2", "P3", "FSA_pilot"}
+# Runs done before TF32 was enabled (29/09): the pilot, its diagnostics (*_eb4), FSA and DET.
+NO_TF32 = {"FSA", "DET"}
 CONFIGS = sorted(p for p in (REPO_ROOT / "configs/exp").glob("*.sh") if p.name != "common.sh")
 
 
@@ -27,6 +29,7 @@ def test_config_parses(config):
     parsed = main_args(args)
     assert parsed.n_gpus == 1 and parsed.accelerator == "gpu" and parsed.lr == 1e-4
     assert parsed.eff_batch_size == (32 if exp in PILOT_EFF_BATCH_32 else 4)
+    assert parsed.tf32 == (0 if exp in PILOT_EFF_BATCH_32 | NO_TF32 or exp.endswith("_eb4") else 1)
     if parsed.use_prompts:
         assert parsed.n_classes == 225 and parsed.freeze == "backbone,encoder,decoder"
     else:

@@ -4,5 +4,5 @@ TASK_DIR=$DATA/tasks/pilot_100-4x25_seed0
 EXP=P2
 N_TASKS=2
 ARGS=("${COMMON_ARGS[@]}" --task_ann_dir "$TASK_DIR" --epochs 4)
-# Run on 28/09 with the effective batch of the original code (common.sh now uses 4).
-ARGS+=(--eff_batch_size 32)
+# Run on 28/09 with the effective batch of the original code and without TF32 (common.sh now uses 4 and TF32).
+ARGS+=(--eff_batch_size 32 --tf32 0)

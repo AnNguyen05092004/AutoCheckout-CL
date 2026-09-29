@@ -206,6 +206,8 @@ def get_args_parser():
     parser.add_argument('--accelerator', default='gpu', type=str, help="Lightning accelerator ('gpu' or 'cpu')")
     parser.add_argument('--eff_batch_size', default=32, type=int,
                         help='Effective batch size; gradients are accumulated to reach it (original: 32)')
+    parser.add_argument('--tf32', default=0, type=int,
+                        help='1: TF32 matrix multiplications on Ampere/Ada GPUs (about 10%% faster on the L4, 29/09)')
     parser.add_argument('--ckpt_every_minutes', default=30, type=float,
                         help='R1: minutes between resume checkpoints within an epoch (also saved every epoch)')
     parser.add_argument('--predict_only', default=0, type=int,
@@ -420,6 +422,7 @@ def main(args):
     if args.eval:
         raise SystemExit('--eval is replaced by --predict_only 1 (predictions are written after each task, F9)')
     seed_everything(args.seed, workers=True)
+    torch.set_float32_matmul_precision('high' if args.tf32 else 'highest')
     check_kernel(args)
     args.iou_types = ['bbox']
     setup_task_info(args)
