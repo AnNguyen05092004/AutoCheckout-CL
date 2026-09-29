@@ -74,6 +74,8 @@ Có thể SSH từ Console (Compute Engine → VM instances → `auto-cl` → SS
 
 ### 2.3 Tắt VM
 
+Thiếu `--preemptible` thì API báo `preemptible=false and provisioning_model=SPOT is contradicting` (gặp ngày 29/09).
+
 ```bash
 gcloud compute instances stop auto-cl "${GC[@]}"
 ```
@@ -93,7 +95,8 @@ Nên chuyển khi code resume đã chạy được (task R1/R2), vì Spot có th
 ```bash
 gcloud compute instances stop auto-cl "${GC[@]}"
 gcloud compute instances set-scheduling auto-cl "${GC[@]}" \
-  --provisioning-model=SPOT --instance-termination-action=STOP --no-restart-on-failure
+  --provisioning-model=SPOT --preemptible --instance-termination-action=STOP --no-restart-on-failure
+# Quay lại on-demand: --provisioning-model=STANDARD --no-preemptible --clear-instance-termination-action --restart-on-failure
 gcloud compute instances start auto-cl "${GC[@]}"
 ```
 

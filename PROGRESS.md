@@ -157,13 +157,17 @@ Mọi thông tin cần để làm tiếp nằm trong file này, `IMPLEMENTATION_
     - P3 (dựng trên nền FSA_pilot yếu) và V4.
     - Dừng bằng SIGKILL nên trap không chạy và VM không tắt. `pilot_chain.log` ghi `P1 exit=137`.
   - Tốc độ đo được (G1b): PDP task 1 0,22 giây/ảnh; task ≥ 2 0,35 giây/ảnh; fine-tune toàn bộ 0,15–0,18 giây/ảnh; dự đoán val+test khoảng 16 phút mỗi task.
-- **ĐANG CHẠY (từ 17:17 UTC 28/09): hàng đợi chẩn đoán**, tmux `queue`, `scripts/run_queue.sh`, file `/data/runs/queue.txt`, log `/data/runs/queue.log`.
-  - Thứ tự: `FSA_pilot_eb4` → `P2_eb4` → `P3_eb4`. Giống FSA_pilot/P2/P3 nhưng batch hiệu dụng 4 (không gộp gradient), tức gấp 8 lần số bước với cùng lượng tính toán. Tổng khoảng 5 giờ.
-  - **VM tự tắt khi hết hàng đợi.**
-  - **Đã đổi `configs/exp/common.sh` sang batch hiệu dụng 4** cho mọi thí nghiệm sau pilot (plan phụ lục C). Không tốn thêm GPU. P1, P2, P3 và FSA_pilot ghim lại batch 32 như lúc chạy.
-  - **FSA xong (23:39 UTC 28/09):** 6.000 ảnh × 6 epoch, 9.000 bước. Val mAP50 **0,984** (AP 0,810); test cAcc 0,684, mCIoU 0,93 trên 100 lớp task 1; `ce` cuối khoảng 0,03. `hf_model` có 225 nhãn, sẵn cho E4. Khoảng 16 phút/epoch.
-  - **Đã thêm `FSA` và `DET` vào cuối hàng đợi.** Cả hai là fine-tune toàn bộ, đã được FSA_pilot_eb4 kiểm chứng, cần cho E4 và E5. Khoảng 2 giờ mỗi cái; dự kiến hàng đợi xong khoảng 02:00 UTC ngày 29/09.
-  - Câu hỏi cần trả lời: với đủ bước, PDP và fine-tune toàn bộ đạt mAP bao nhiêu trên pilot? Prototype có đủ lớp không? Kết quả quyết định cấu hình train (batch hiệu dụng, số epoch) cho E0–E4, **cần nhóm chốt** vì ảnh hưởng ngân sách GPU.
+- **Hàng đợi chẩn đoán và FSA, DET (17:17 UTC 28/09 → 01:21 UTC 29/09): xong.** `queue.log`: FSA_pilot_eb4, P2_eb4, P3_eb4, FSA, DET đều `exit=0`.
+  - **FSA:** 6.000 ảnh × 6 epoch, 9.000 bước. Val mAP50 **0,984** (AP 0,810); test cAcc 0,684, mCIoU 0,93 trên 100 lớp task 1. `hf_model` có 225 nhãn. Khoảng 16 phút/epoch.
+  - **DET:** xong, không tự chấm điểm; kết quả của nó được đánh giá qua E5.
+- **ĐANG CHẠY (từ 02:21 UTC 29/09), VM đã chuyển sang Spot:**
+  - Hàng đợi (tmux `queue`, `/data/runs/queue.txt`): **E4 → E0 → E3 → E1 → E2 → E3_coco**, tổng khoảng 4 ngày. VM tự tắt khi hết hàng đợi.
+  - **Spot bị thu hồi** (VM tắt mà `queue.log` chưa có `queue finished`):
+    1. bật lại VM (guide §2.1);
+    2. `tmux new -d -s queue "bash ~/AutoCheckout-CL/scripts/run_queue.sh"`;
+    3. thí nghiệm đang dở tự chạy tiếp từ `last.ckpt`.
+  - **E5** chạy song song trong tmux `e5` (`/data/runs/run_e5.sh`, log `/data/runs/E5.log`). Trong lúc E5 chạy, E4 chậm khoảng 2,5 lần (VM chỉ có 4 vCPU và dùng chung GPU).
+  - Sau khi E0, E3, E4, E5 xong: đánh giá mốc G2, rồi mới xếp A1–A9 vào hàng đợi.
 
 ### Việc tiếp theo, theo thứ tự
 
