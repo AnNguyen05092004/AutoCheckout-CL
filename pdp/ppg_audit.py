@@ -34,8 +34,9 @@ def match_pseudo_labels(boxes, labels, scores, gt_boxes, gt_labels, iou_thresh=0
     """Outcome of each pseudo-label against the annotated earlier objects of one image.
 
     Greedy by score: a pseudo-label takes the unmatched annotated box with the highest IoU >= iou_thresh.
-    Returns (outcomes, matched_gt): outcome 'tp' (same class), 'wrong_class' (other class) or 'fp' (no box),
-    and the index of the matched annotation (-1 for 'fp'). Boxes are xyxy in any common frame.
+    Returns (outcomes, matched_gt): outcome 'tp' (same class), 'wrong_class' (other class), 'duplicate' (no
+    free box, but a box of the same class already taken by a higher-scoring pseudo-label) or 'fp' (no box),
+    and the index of the matched (or duplicated) annotation (-1 for 'fp'). Boxes are xyxy in any common frame.
     """
     result = [('fp', -1)] * len(boxes)
     if len(boxes) and len(gt_boxes):
@@ -47,6 +48,10 @@ def match_pseudo_labels(boxes, labels, scores, gt_boxes, gt_labels, iou_thresh=0
             if candidate[j] >= iou_thresh:
                 taken[j] = True
                 result[i] = ('tp' if int(labels[i]) == int(gt_labels[j]) else 'wrong_class', j)
+                continue
+            same = ious[i].masked_fill(~(taken & (gt_labels == labels[i])), -1)
+            if same.max() >= iou_thresh:
+                result[i] = ('duplicate', int(same.argmax()))
     return [outcome for outcome, _ in result], [j for _, j in result]
 
 
