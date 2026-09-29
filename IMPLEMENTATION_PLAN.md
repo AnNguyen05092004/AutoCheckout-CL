@@ -575,10 +575,13 @@ Các file được dẫn chiếu (trong thư mục gốc hoặc `models/` của 
 | Mã | Cấu hình | Vai trò |
 |---|---|---|
 | E0 | B1a: fine-tune toàn bộ trên cả 200 lớp một lần (12 epoch) | Cận trên |
-| E1 | Train tuần tự: 1 pool chung, không pool riêng, không nhãn giả | Cận dưới (mức quên khi không chống) |
-| E2 | Tương đương MD-DETR: chỉ pool riêng, nhãn giả theo ngưỡng cố định 0,65, top-5 (như `run.sh` của MD-DETR) | Baseline chính của paper |
-| E3 | PDP đã sửa, đúng như paper (không bật I1–I5, không augmentation) | Tái hiện paper |
-| **E4** | E3 + I1 + I2 + I3 | **Phương pháp chính** |
+| E1 | Train tuần tự: 1 pool chung, không pool riêng, không nhãn giả; nền FSA | Cận dưới (mức quên khi không chống) |
+| E2 | Tương đương MD-DETR: chỉ pool riêng, nhãn giả theo ngưỡng cố định 0,65, top-5 (như `run.sh` của MD-DETR); nền FSA | Baseline chính của paper |
+| E3 | PDP đã sửa trên nền FSA (I1), không bật I2–I5, không augmentation | PDP |
+| E3_coco | PDP đã sửa, đúng như paper: nền Deformable DETR COCO đóng băng, không bật I1–I5 | Tái hiện paper; cho thấy vì sao cần FSA |
+| **E4** | E3 + I2 + I3 (tức PDP + I1 + I2 + I3) | **Phương pháp chính** |
+
+Từ 29/09, E1–E4 cùng dùng nền FSA (nhóm chốt sau pilot, phụ lục C): trên nền COCO đóng băng, mọi phương pháp chỉ đạt khoảng 0,1 mAP50 ở pilot, nên so sánh giữa chúng không có ý nghĩa.
 | E5 | B3, truy xuất bằng DINOv2 | Phương án thay thế / dự phòng |
 
 **Ablation trên E4** (3 task 100+25+25 nếu thiếu GPU; các ablation chỉ ảnh hưởng task ≥ 2 thì dùng lại task 1 của E4):
@@ -711,3 +714,4 @@ G2 → A1–A9 → V5, V6 → (demo) → báo cáo → G3
 | F13 | Bias của classifier luôn bị HuggingFace đặt về 0 (p = 0,5), xóa mất prior của focal loss → thêm F13 | Phát hiện qua `loss_ce` khoảng 730 ở phút đầu của pilot; đã dừng pilot, sửa, chạy lại |
 | Cấu hình | `configs/exp/*.sh` cho mọi thí nghiệm của mục 7 (P1–P3, FSA_pilot, E0, FSA, DET, E1–E4, A1–A9) | Test parse mọi file |
 | Batch hiệu dụng | 32 (code gốc, gộp gradient) → **4** cho mọi thí nghiệm sau pilot. Cùng lượng tính toán nhưng gấp 8 lần số bước tối ưu. Pilot ở 32 (364 bước ở task 1): P2 đạt val mAP50 0,042, FSA_pilot đạt 0,085. Mô hình định vị tốt (AP50 không phân biệt lớp 0,73–0,93) nhưng chỉ 14–20% đúng SKU. FSA_pilot_eb4 (cùng dữ liệu, batch 4) đạt 0,675, 75% đúng SKU | Phát hiện qua pilot 28/09. Một task RPC có ít ảnh hơn khoảng 10 lần so với một task COCO của paper. Cấu hình pilot giữ batch 32 để tái lập. P2_eb4/P3_eb4 kiểm tra lại cho PDP |
+| Nền của E1–E4 | Chẩn đoán sau pilot: PDP trên nền COCO đóng băng đạt 0,110 mAP50 task 1 (P2_eb4); trên nền FSA đạt 0,829, lớp cũ/mới sau task 2 là 0,827/0,669, không lớp nào thiếu prototype (P3_eb4). Nhóm chốt (29/09): E1, E2, E3 chạy trên nền FSA như E4; thêm E3_coco (đúng như paper) để tái hiện. Bỏ P1 | Khoảng +17 giờ GPU cho E3_coco |

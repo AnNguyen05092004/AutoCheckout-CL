@@ -37,5 +37,13 @@ def test_config_parses(config):
 
 def test_expected_experiments_exist():
     names = {p.stem for p in CONFIGS}
-    assert {"P1", "P2", "P3", "FSA_pilot", "E0", "FSA", "DET", "E1", "E2", "E3", "E4"} <= names
+    assert {"P1", "P2", "P3", "FSA_pilot", "E0", "FSA", "DET", "E1", "E2", "E3", "E3_coco", "E4"} <= names
     assert {f"A{i}" for i in range(1, 10)} <= names
+
+
+def test_method_comparison_starts_from_fsa_and_e3_coco_from_the_paper_checkpoint():
+    for name in ("E1", "E2", "E3", "E4"):
+        args = sourced(REPO_ROOT / f"configs/exp/{name}.sh")[4]
+        assert main_args(args).repo_name == "/data/runs/FSA/task_1/hf_model", name
+    args = sourced(REPO_ROOT / "configs/exp/E3_coco.sh")[4]
+    assert main_args(args).repo_name == "SenseTime/deformable-detr"

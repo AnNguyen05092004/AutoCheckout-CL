@@ -202,6 +202,11 @@ Mọi thông tin cần để làm tiếp nằm trong file này, `IMPLEMENTATION_
 - **Commit message:** một số commit đã đẩy lên ghi nhầm "29/09"; đúng là 28/09.
 - **Chỉ dùng một agent** (không tạo agent phụ), theo yêu cầu của nhóm.
 
+### Quyết định của nhóm ngày 29/09
+
+- E1, E2, E3 chạy trên nền FSA (`FSA_ARGS` trong `configs/exp/common.sh`) như E4. Thêm `E3_coco` (PDP đúng như paper, nền COCO) làm kết quả tái hiện.
+- Bỏ P1 (số liệu "code gốc"); tác dụng của từng thành phần đã được các ablation tách ra.
+
 ### Câu hỏi còn mở cho nhóm
 
 - QĐ-5: demo webcam.

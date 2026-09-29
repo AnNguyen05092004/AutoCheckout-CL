@@ -26,8 +26,13 @@ STANDARD_ARGS=(--train_suffix _capped --epochs 6)
 FINETUNE_ARGS=(--use_prompts 0 --local_query 0 --pseudo none --freeze "" --optim_groups detr
     --lr_backbone_names backbone)
 
-# PDP with the improvements of E4 (plan 6.6): FSA start (I1), augmentation (I2), no double labels (I3).
-# Needs the FSA run (configs/exp/FSA.sh) to be finished first.
-E4_ARGS=(--repo_name "$RUNS/FSA/task_1/hf_model" --augment 1 --pseudo_gt_iou 0.5)
+# FSA start (I1): PDP on the Deformable DETR fine-tuned on task 1 (configs/exp/FSA.sh, must be finished first).
+# E1-E4 all start from it (decided 29/09): on the frozen COCO checkpoint, PDP reached a pilot val mAP50 of 0.11
+# against 0.83 on the FSA base, so a comparison of continual-learning methods is only meaningful on FSA.
+# E3_coco keeps the paper's COCO start as the reproduction.
+FSA_ARGS=(--repo_name "$RUNS/FSA/task_1/hf_model")
 
-# Order of the runs: FSA -> E4 -> ablations that reuse E4's task 1 (A1, A4, A7, A8); DET -> E5.
+# PDP with the improvements of E4 (plan 6.6): FSA start (I1), augmentation (I2), no double labels (I3).
+E4_ARGS=("${FSA_ARGS[@]}" --augment 1 --pseudo_gt_iou 0.5)
+
+# Order of the runs: FSA -> E1-E4 -> ablations that reuse E4's task 1 (A1, A4, A7, A8); DET -> E5.
