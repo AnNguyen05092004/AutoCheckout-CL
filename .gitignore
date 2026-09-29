@@ -17,7 +17,6 @@ kaggle.json
 lightning_logs/
 
 # Large reference files kept locally only
-*.pdf
 
 # OS / editors
 .DS_Store
