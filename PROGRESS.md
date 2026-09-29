@@ -160,9 +160,14 @@ Mọi thông tin cần để làm tiếp nằm trong file này, `IMPLEMENTATION_
 - **Hàng đợi chẩn đoán và FSA, DET (17:17 UTC 28/09 → 01:21 UTC 29/09): xong.** `queue.log`: FSA_pilot_eb4, P2_eb4, P3_eb4, FSA, DET đều `exit=0`.
   - **FSA:** 6.000 ảnh × 6 epoch, 9.000 bước. Val mAP50 **0,984** (AP 0,810); test cAcc 0,684, mCIoU 0,93 trên 100 lớp task 1. `hf_model` có 225 nhãn. Khoảng 16 phút/epoch.
   - **DET:** xong, không tự chấm điểm; kết quả của nó được đánh giá qua E5.
-- **ĐANG CHẠY (từ 02:21 UTC 29/09), VM đã chuyển sang Spot:**
+- **29/09, 03:02 UTC: Spot bị thu hồi** (GCP ghi "Instance was preempted") sau 40 phút; bật lại Spot thì gặp stockout.
+  - Nhóm chọn **quay về on-demand** để chạy nhanh nhất.
+  - Bật TF32 cho các thí nghiệm chính (`--tf32 1`): nhanh hơn khoảng 10% (0,302 so với 0,333 giây/ảnh).
+  - E4 chạy lại từ đầu với TF32 cho đồng nhất; bản dở dang (không TF32) được đổi tên thành `/data/runs/E4_aborted_fp32`.
+  - Trước đây trap của `run_queue.sh` ghi `queue finished` cả khi bị ngắt; nay có `interrupted`, `queue empty` và `queue stopped` (commit sau `7a03a1c`). Hàng đợi đang chạy vẫn dùng bản cũ cho tới lần khởi động lại sau.
+- **ĐANG CHẠY (từ 03:13 UTC 29/09), VM on-demand:**
   - Hàng đợi (tmux `queue`, `/data/runs/queue.txt`): **E4 → E0 → E3 → E1 → E2 → E3_coco**, tổng khoảng 4 ngày. VM tự tắt khi hết hàng đợi.
-  - **Spot bị thu hồi** (VM tắt mà `queue.log` chưa có `queue finished`):
+  - **Spot bị thu hồi** (VM tắt mà `queue.log` không có dòng `queue empty`):
     1. bật lại VM (guide §2.1);
     2. `tmux new -d -s queue "bash ~/AutoCheckout-CL/scripts/run_queue.sh"`;
     3. thí nghiệm đang dở tự chạy tiếp từ `last.ckpt`.

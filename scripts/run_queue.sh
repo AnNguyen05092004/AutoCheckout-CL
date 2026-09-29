@@ -6,15 +6,18 @@
 #
 # The queue file is read again before each experiment, so names can be appended while it runs.
 # A finished experiment gets the line "<name> exit=<status> <date>" in $RUNS/queue.log and is never run
-# again. One without that line (the VM stopped midway, e.g. Spot preemption) is run again by the same
-# command, and run_exp.sh continues it where it stopped. Output of each experiment: $RUNS/<name>.log.
+# again. One killed by a signal (the VM stopping, Spot preemption) gets "<name> interrupted" instead and stops
+# the queue; the same command runs it again later, and run_exp.sh continues it where it stopped. To skip an
+# experiment, delete its line from queue.txt. Output of each experiment: $RUNS/<name>.log.
+# queue.log ends with "queue empty" only when every queued experiment is finished; "queue stopped" is
+# written whenever the script exits, just before the VM is stopped.
 set -uo pipefail
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 RUNS=${RUNS:-/data/runs}
 CONFIG_DIR=${CONFIG_DIR:-$REPO/configs/exp}
 QUEUE=$RUNS/queue.txt
 LOG=$RUNS/queue.log
-trap 'echo "queue finished $(date "+%F %T")" >> "$LOG"; ${SHUTDOWN_CMD:-sudo shutdown -h now}' EXIT
+trap 'echo "queue stopped $(date "+%F %T")" >> "$LOG"; ${SHUTDOWN_CMD:-sudo shutdown -h now}' EXIT
 if [[ -f $HOME/venvs/pdp/bin/activate ]]; then
     source "$HOME/venvs/pdp/bin/activate"
 fi
@@ -32,5 +35,11 @@ next_experiment() {
 
 while exp=$(next_experiment) && [[ -n $exp ]]; do
     bash scripts/run_exp.sh "$CONFIG_DIR/$exp.sh" >> "$RUNS/$exp.log" 2>&1
-    echo "$exp exit=$? $(date "+%F %T")" >> "$LOG"
+    status=$?
+    if (( status > 128 )); then
+        echo "$exp interrupted (status $status) $(date "+%F %T")" >> "$LOG"
+        exit "$status"
+    fi
+    echo "$exp exit=$status $(date "+%F %T")" >> "$LOG"
 done
+echo "queue empty $(date "+%F %T")" >> "$LOG"

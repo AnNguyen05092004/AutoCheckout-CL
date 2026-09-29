@@ -292,12 +292,15 @@ tmux new -d -s queue 'bash ~/AutoCheckout-CL/scripts/run_queue.sh'
 
 - File hàng đợi được đọc lại trước mỗi thí nghiệm, nên có thể thêm tên trong lúc đang chạy.
 - Mỗi thí nghiệm xong ghi một dòng `<tên> exit=<mã>` vào `/data/runs/queue.log` và không bao giờ chạy lại. Output ở `/data/runs/<tên>.log`.
+- Thí nghiệm bị ngắt bởi tín hiệu (VM tắt, Spot bị thu hồi) được ghi `<tên> interrupted`, **không** tính là xong, và hàng đợi dừng lại.
+- Muốn bỏ một thí nghiệm: xóa dòng của nó trong `queue.txt`.
+- `queue.log` có dòng `queue empty` khi mọi thí nghiệm đã xong. Dòng `queue stopped` luôn được ghi ngay trước khi VM tắt.
 - Hết hàng đợi thì VM tự tắt, kể cả khi có thí nghiệm lỗi.
 
 ### 7.3 Khi VM bị tắt giữa chừng (Spot, lỗi, bảo trì)
 
 1. Bật VM lại (mục 2.1) và SSH vào.
-2. Chạy lại **đúng lệnh cũ** (với hàng đợi: chạy lại `run_queue.sh`; thí nghiệm đang dở chưa có dòng `exit=` nên được chạy tiếp). Script tự xử lý:
+2. Chạy lại **đúng lệnh cũ** (với hàng đợi: chạy lại `run_queue.sh`; thí nghiệm đang dở không có dòng `exit=` nên được chạy tiếp). Script tự xử lý:
    - task đã xong thì bỏ qua;
    - task thiếu file dự đoán thì chỉ dự đoán lại;
    - task đang dở thì nối tiếp từ `task_<t>/last.ckpt` (lưu mỗi 30 phút và mỗi cuối epoch).
