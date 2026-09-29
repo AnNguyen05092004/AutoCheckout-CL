@@ -23,7 +23,7 @@ gcloud compute ssh auto-cl "${GC[@]}" --command '
     if [ -n "$latest" ]; then
         echo "== current: $(basename "$latest" .log)"
         grep -a -E "^-- task|^== " "$latest" | tail -2
-        tail -c 400 "$latest" | tr "\r" "\n" | grep -v "^$" | tail -1 | cut -c1-170
+        tail -c 400 "$latest" | tr "\r" "\n" | grep -a -v "^$" | tail -1 | cut -c1-170
     fi
     echo "== GPU"; nvidia-smi --query-gpu=utilization.gpu,memory.used --format=csv,noheader
     echo "== disk"; df -h / | tail -1'
