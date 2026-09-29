@@ -165,10 +165,9 @@ Mọi thông tin cần để làm tiếp nằm trong file này, `IMPLEMENTATION_
   - Bật TF32 cho các thí nghiệm chính (`--tf32 1`): nhanh hơn khoảng 10% (0,302 so với 0,333 giây/ảnh).
   - E4 chạy lại từ đầu với TF32 cho đồng nhất; bản dở dang (không TF32) được đổi tên thành `/data/runs/E4_aborted_fp32`.
   - Trước đây trap của `run_queue.sh` ghi `queue finished` cả khi bị ngắt; nay có `interrupted`, `queue empty` và `queue stopped` (commit sau `7a03a1c`). Hàng đợi đang chạy vẫn dùng bản cũ cho tới lần khởi động lại sau.
-- **TẠM DỪNG SAU E4 (nhóm yêu cầu, 29/09 khoảng 23:00 giờ VN).** Trong `/data/runs/queue.txt`, E0, E3, E1, E2 và E3_coco đã bị comment bằng `#` (bản cũ: `queue.txt.bak`). Khi E4 xong (khoảng 19:20 UTC), hàng đợi tự kết thúc và tắt VM.
-  - Việc còn lại sau E4: bật VM, đọc `/data/runs/E4/metrics_*`, chép các file metrics về `results/`, tắt VM, rồi cập nhật file này và `docs/status-2026-09-29.md`.
-  - **Chạy tiếp:** bỏ dấu `#` ở các dòng trên trong `queue.txt`, `git fetch` + `reset` repo trên VM (để lấy `run_queue.sh` mới), rồi `tmux new -d -s queue "bash ~/AutoCheckout-CL/scripts/run_queue.sh"`.
-- **Đã chạy (từ 03:13 UTC 29/09), VM on-demand:**
+- 29/09 khoảng 23:00 giờ VN: nhóm yêu cầu tạm dừng sau E4, rồi đổi ý ngay, cho chạy tiếp cả hàng đợi qua đêm. `queue.txt` đã khôi phục như cũ (giống `queue.txt.bak`).
+  - Khi E4 xong (khoảng 19:20 UTC): đọc `/data/runs/E4/metrics_*` trong lúc E0 chạy, rồi cập nhật file này và `docs/status-2026-09-29.md`.
+- **ĐANG CHẠY (từ 03:13 UTC 29/09), VM on-demand:**
   - Hàng đợi (tmux `queue`, `/data/runs/queue.txt`): **E4 → E0 → E3 → E1 → E2 → E3_coco**, tổng khoảng 4 ngày. VM tự tắt khi hết hàng đợi.
   - **Spot bị thu hồi** (VM tắt mà `queue.log` không có dòng `queue empty`):
     1. bật lại VM (guide §2.1);
