@@ -1,0 +1,308 @@
+{
+ "task_id": 5,
+ "images": 500,
+ "earlier_objects": 5081,
+ "recall": 0.9561,
+ "branches": {
+  "high": {
+   "tp": 4230,
+   "wrong_class": 48,
+   "fp": 9,
+   "precision": 0.9867
+  },
+  "prototype": {
+   "tp": 628,
+   "wrong_class": 133,
+   "fp": 373,
+   "duplicate": 21,
+   "precision": 0.5437
+  }
+ },
+ "all": {
+  "tp": 4858,
+  "wrong_class": 181,
+  "fp": 382,
+  "duplicate": 21,
+  "precision": 0.8927
+ },
+ "by_supercategory": {
+  "alcohol": {
+   "found": 268,
+   "missed": 6,
+   "recall": 0.9781
+  },
+  "candy": {
+   "found": 232,
+   "missed": 13,
+   "recall": 0.9469
+  },
+  "canned_food": {
+   "found": 292,
+   "missed": 10,
+   "recall": 0.9669
+  },
+  "chocolate": {
+   "found": 294,
+   "missed": 21,
+   "recall": 0.9333
+  },
+  "dessert": {
+   "found": 401,
+   "missed": 19,
+   "recall": 0.9548
+  },
+  "dried_food": {
+   "found": 236,
+   "missed": 5,
+   "recall": 0.9793
+  },
+  "dried_fruit": {
+   "found": 216,
+   "missed": 28,
+   "recall": 0.8852
+  },
+  "drink": {
+   "found": 378,
+   "missed": 42,
+   "recall": 0.9
+  },
+  "gum": {
+   "found": 190,
+   "missed": 17,
+   "recall": 0.9179
+  },
+  "instant_drink": {
+   "found": 286,
+   "missed": 15,
+   "recall": 0.9502
+  },
+  "instant_noodles": {
+   "found": 321,
+   "missed": 4,
+   "recall": 0.9877
+  },
+  "milk": {
+   "found": 269,
+   "missed": 6,
+   "recall": 0.9782
+  },
+  "personal_hygiene": {
+   "found": 255,
+   "missed": 8,
+   "recall": 0.9696
+  },
+  "puffed_food": {
+   "found": 307,
+   "missed": 5,
+   "recall": 0.984
+  },
+  "seasoner": {
+   "found": 356,
+   "missed": 6,
+   "recall": 0.9834
+  },
+  "stationery": {
+   "found": 132,
+   "missed": 10,
+   "recall": 0.9296
+  },
+  "tissue": {
+   "found": 425,
+   "missed": 8,
+   "recall": 0.9815
+  }
+ },
+ "confusions_top": [
+  {
+   "pseudo": 102,
+   "true": 151,
+   "count": 21,
+   "same_supercategory": false
+  },
+  {
+   "pseudo": 109,
+   "true": 133,
+   "count": 12,
+   "same_supercategory": true
+  },
+  {
+   "pseudo": 110,
+   "true": 133,
+   "count": 10,
+   "same_supercategory": true
+  },
+  {
+   "pseudo": 66,
+   "true": 116,
+   "count": 7,
+   "same_supercategory": true
+  },
+  {
+   "pseudo": 110,
+   "true": 109,
+   "count": 7,
+   "same_supercategory": true
+  },
+  {
+   "pseudo": 114,
+   "true": 167,
+   "count": 6,
+   "same_supercategory": false
+  },
+  {
+   "pseudo": 101,
+   "true": 108,
+   "count": 6,
+   "same_supercategory": false
+  },
+  {
+   "pseudo": 133,
+   "true": 109,
+   "count": 5,
+   "same_supercategory": true
+  },
+  {
+   "pseudo": 101,
+   "true": 174,
+   "count": 3,
+   "same_supercategory": false
+  },
+  {
+   "pseudo": 107,
+   "true": 108,
+   "count": 3,
+   "same_supercategory": true
+  },
+  {
+   "pseudo": 56,
+   "true": 120,
+   "count": 3,
+   "same_supercategory": false
+  },
+  {
+   "pseudo": 103,
+   "true": 108,
+   "count": 3,
+   "same_supercategory": false
+  },
+  {
+   "pseudo": 101,
+   "true": 158,
+   "count": 2,
+   "same_supercategory": false
+  },
+  {
+   "pseudo": 103,
+   "true": 135,
+   "count": 2,
+   "same_supercategory": false
+  },
+  {
+   "pseudo": 123,
+   "true": 162,
+   "count": 2,
+   "same_supercategory": false
+  },
+  {
+   "pseudo": 82,
+   "true": 121,
+   "count": 2,
+   "same_supercategory": true
+  },
+  {
+   "pseudo": 62,
+   "true": 140,
+   "count": 2,
+   "same_supercategory": true
+  },
+  {
+   "pseudo": 11,
+   "true": 101,
+   "count": 2,
+   "same_supercategory": false
+  },
+  {
+   "pseudo": 66,
+   "true": 169,
+   "count": 2,
+   "same_supercategory": false
+  },
+  {
+   "pseudo": 118,
+   "true": 141,
+   "count": 2,
+   "same_supercategory": true
+  },
+  {
+   "pseudo": 172,
+   "true": 122,
+   "count": 2,
+   "same_supercategory": true
+  },
+  {
+   "pseudo": 161,
+   "true": 129,
+   "count": 2,
+   "same_supercategory": false
+  },
+  {
+   "pseudo": 114,
+   "true": 138,
+   "count": 2,
+   "same_supercategory": true
+  },
+  {
+   "pseudo": 142,
+   "true": 119,
+   "count": 1,
+   "same_supercategory": true
+  },
+  {
+   "pseudo": 112,
+   "true": 171,
+   "count": 1,
+   "same_supercategory": false
+  },
+  {
+   "pseudo": 72,
+   "true": 73,
+   "count": 1,
+   "same_supercategory": true
+  },
+  {
+   "pseudo": 150,
+   "true": 126,
+   "count": 1,
+   "same_supercategory": true
+  },
+  {
+   "pseudo": 24,
+   "true": 100,
+   "count": 1,
+   "same_supercategory": false
+  },
+  {
+   "pseudo": 89,
+   "true": 174,
+   "count": 1,
+   "same_supercategory": false
+  },
+  {
+   "pseudo": 31,
+   "true": 63,
+   "count": 1,
+   "same_supercategory": false
+  }
+ ],
+ "wrong_class_same_supercategory_share": 0.4365,
+ "settings": {
+  "pseudo": "ppg",
+  "pseudo_topk": 50,
+  "pseudo_thresh_high": 0.5,
+  "pseudo_thresh_low": 0.2,
+  "prototype_sim_thresh": 0.5,
+  "prototype_nearest": 0,
+  "pseudo_gt_iou": 0.5,
+  "pseudo_dedup_iou": 0.5
+ }
+}

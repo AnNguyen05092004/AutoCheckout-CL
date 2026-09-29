@@ -107,7 +107,7 @@ Trạng thái: **Xong** = đạt tiêu chí nghiệm thu trong plan; **Đang là
 - **28/09/2026**: nhóm chốt E5 = phương án b; giữ 14 snapshot ổ cũ; đẩy repo lên GitHub (public). Xong R1, R2, R3, I1–I5, B1, B2, V4, V5 (code), cấu hình mọi thí nghiệm, script VM, viết lại guide; V2 nhanh hơn khoảng 5 lần (chính xác tuyệt đối). 178 test đạt.
 - 28/09: nhóm chốt E5 = phương án b; giữ 14 snapshot ổ cũ. Kiểm tra nguồn dữ liệu: mirror HuggingFace thiếu tên file và `level`, nên vẫn cần Kaggle. Ảnh quầy RPC không cố định 1800 px (khoảng 1750–1890, vuông); DL2 đã xử lý theo từng ảnh.
 
-## Handoff (cập nhật 28/09/2026, khoảng 21:50 giờ VN — đọc phần này trước tiên)
+## Handoff (cập nhật 30/09/2026, khoảng 03:00 giờ VN — đọc phần này trước tiên)
 
 Mọi thông tin cần để làm tiếp nằm trong file này, `IMPLEMENTATION_PLAN.md` (v1.3 + phụ lục B, C; F13 ở §6.3), `GCP_TRAINING_GUIDE.md` và `docs/formats.md`.
 
@@ -167,31 +167,36 @@ Mọi thông tin cần để làm tiếp nằm trong file này, `IMPLEMENTATION_
   - Trước đây trap của `run_queue.sh` ghi `queue finished` cả khi bị ngắt; nay có `interrupted`, `queue empty` và `queue stopped` (commit sau `7a03a1c`). Hàng đợi đang chạy vẫn dùng bản cũ cho tới lần khởi động lại sau.
 - 29/09 khoảng 23:00 giờ VN: nhóm yêu cầu tạm dừng sau E4, rồi đổi ý ngay, cho chạy tiếp cả hàng đợi qua đêm. `queue.txt` đã khôi phục như cũ (giống `queue.txt.bak`).
   - Khi E4 xong (khoảng 19:20 UTC): đọc `/data/runs/E4/metrics_*` trong lúc E0 chạy, rồi cập nhật file này và `docs/status-2026-09-29.md`.
-- **ĐANG CHẠY (từ 03:13 UTC 29/09), VM on-demand:**
-  - Hàng đợi (tmux `queue`, `/data/runs/queue.txt`): **E4 → E0 → E3 → E1 → E2 → E3_coco**, tổng khoảng 4 ngày. VM tự tắt khi hết hàng đợi.
-  - **Spot bị thu hồi** (VM tắt mà `queue.log` không có dòng `queue empty`):
-    1. bật lại VM (guide §2.1);
-    2. `tmux new -d -s queue "bash ~/AutoCheckout-CL/scripts/run_queue.sh"`;
-    3. thí nghiệm đang dở tự chạy tiếp từ `last.ckpt`.
-  - **E5** chạy song song trong tmux `e5` (`/data/runs/run_e5.sh`, log `/data/runs/E5.log`). Trong lúc E5 chạy, E4 chậm khoảng 2,5 lần (VM chỉ có 4 vCPU và dùng chung GPU).
-  - Sau khi E0, E3, E4, E5 xong: đánh giá mốc G2, rồi mới xếp A1–A9 vào hàng đợi.
+- **E4 xong (03:13 → 19:13 UTC 29/09, TF32, on-demand).** Metrics được chép về `results/experiments/E4/`.
+
+  | E4 sau đợt | 1 | 2 | 3 | 4 | 5 |
+  |---|---|---|---|---|---|
+  | mAP@A AP50 (val) | 0,987 | 0,969 | 0,959 | 0,955 | **0,938** (test 0,930; AP 0,652) |
+  | cAcc (test) | 0,744 | 0,472 | 0,318 | 0,210 | **0,100** (ACD 4,4) |
+
+  - Độ quên AP50 trung bình sau đợt 5 là 0,012.
+  - AP chặt ở đợt 1 là 0,706, trong khi FSA đạt 0,810.
+- **E5 xong** (DET + DINOv2, cấu hình mặc định): mAP@A AP50 trên val là 0,479 sau đợt 5; cAcc ≈ 0. Kém xa E4, nên mốc G2 "E4 so với E5" đạt.
+- **PHÁT HIỆN F14 (30/09): nhãn giả trùng lặp.** Đây là nguyên nhân chính khiến cAcc sụp.
+  - Ở đợt 5, 24,6% (12.000/48.843) phát hiện của SKU đợt 1 trên test là **trùng lặp**: cùng vật, cùng lớp. Ở đợt 1 chỉ 0,9%, đợt 2 là 1,9%. Nhầm SKU mới thành cũ hay rơi vào nền đều không đáng kể.
+  - **Audit V4** (`ppg_audit.py`, nay có mục `duplicate`) trên E4 cho thấy nhãn giả trùng chiếm 3,7% ở task 2 và **31% ở task 5**. Precision của nhánh prototype chỉ 0,17.
+  - Cơ chế: nhánh prototype nhận các query phụ trên vật đã có nhãn, vì đặc trưng của chúng khớp prototype. Student học ra dự đoán trùng, rồi làm teacher cho đợt sau, nên lỗi dồn qua các đợt.
+  - **F14 (`--pseudo_dedup_iou`, commit `4c7bea8`, mặc định tắt):** NMS không phân biệt lớp giữa các nhãn giả. Audit lại task 5 với cùng teacher: nhãn trùng từ 2.505 còn 21, precision từ 0,595 lên 0,893, recall giữ 0,956.
+  - Loại trùng ngay lúc dự đoán (NMS 0,5 trên file dự đoán của E4, chưa train lại): cAcc test đợt 5 từ 0,100 lên **0,396**, ACD từ 4,41 xuống 1,82. Đợt 1: từ 0,744 lên 0,785.
+  - Script chẩn đoán nằm trong scratchpad của session (`diag_count_groups.py`, `diag_extra_old.py`, `diag_count_nms.py`, `diag_count_unlearned.py`); bản chép trên VM ở `/tmp`.
+- **ĐANG CHẠY:** hàng đợi (tmux `queue`), **E0 → E1 → E3 → E2 → E3_coco**. E1 đã được đưa lên trước E3 lúc 30/09: E1 không dùng nhãn giả nên không phụ thuộc quyết định F14.
+  - E0 xong khoảng 04:30 UTC 30/09; E1 xong khoảng 18:30 UTC 30/09; sau đó đến E3.
+  - Hàng đợi đang chạy vẫn là `run_queue.sh` bản cũ (trap ghi `queue finished`); bản mới có hiệu lực từ lần khởi động sau.
 
 ### Việc tiếp theo, theo thứ tự
 
-1. **Khi hàng đợi chẩn đoán xong** (`queue.log` có dòng `queue finished`, VM tắt):
-   - đọc `/data/runs/{FSA_pilot_eb4,P2_eb4,P3_eb4}/metrics_cl_val.md` và các dòng `WARNING: task ... classes have no prototype` trong `/data/runs/<tên>.log`;
-   - so với bảng pilot ở trên; đề xuất cấu hình train cho E0–E4 để nhóm chốt.
-2. **Đánh giá mốc G1 (plan §8), chỉ dựa trên val.** Làm với các run `_eb4`, hoặc với cấu hình được chọn nếu nó khác:
-   - (a) P2 phải tốt hơn P1 ở mAP@P của task 2; nếu không thì rà lại F2, F5, F6.
-   - (b) Tốc độ thật đã có.
-   - (c) FSA làm giảm mAP@C của task 2 ≥ 3 điểm (P3 so với P2) thì bỏ FSA hoặc giảm số epoch FSA.
-   - **Rủi ro cần xem:** smoke 1 epoch có 24/25 lớp mới không có prototype, vì F7 chỉ lấy query phân loại đúng. Pilot 4 epoch: task 1 của P2 thiếu 40/100 lớp (xem trên); còn cần xem task 2 và V4. Nếu thiếu nhiều thì nhánh prototype của PPG hoạt động kém. Hướng xử lý: nới F7 (ví dụ lấy lớp đúng trong top-k, hoặc cập nhật prototype ở 2 epoch cuối), rồi so sánh trên val.
-   - Ghi kết quả vào PROGRESS.md và plan.
-3. **Nếu G1 đạt:** chuyển `auto-cl` sang Spot (guide §2.5, VM phải tắt).
-   - Thứ tự chạy: FSA → E4 và E0, E1, E2, E3 → DET → E5 (guide §7.4) → A1–A9. A1, A4, A7, A8 dùng lại task 1 của E4.
-   - Chạy mỗi thí nghiệm bằng `bash scripts/run_exp.sh configs/exp/<tên>.sh --shutdown` trong tmux, hoặc viết chuỗi tương tự `run_pilot.sh`.
-   - Hạn credit **24/10/2026**: tải kết quả về (guide §9) và xóa VM cùng ổ trước ngày đó.
-4. Làm sau: V6 (bảng tổng hợp, `tools/summarize.py`), V5 (bảng độ trễ), R5 (tùy chọn), demo (QĐ-5).
+1. **Chờ nhóm quyết F14** (trước khi E3 bắt đầu, khoảng 18:30 UTC 30/09). Đề xuất:
+   - bật `--pseudo_dedup_iou 0.5` trong `configs/exp/common.sh` cho mọi run có nhãn giả (E2, E3, E4, E3_coco, A*);
+   - đổi tên `/data/runs/E4` thành `E4_noF14` (bản đối chứng) và chạy lại E4 ngay sau thí nghiệm đang chạy (+16 giờ);
+   - thêm tùy chọn NMS không phân biệt lớp lúc đếm vào `tools/eval_count.py`, rồi báo cáo cả hai (có và không có NMS).
+2. Khi E0, E3, E4 (F14) và E5 xong: đánh giá mốc G2, rồi xếp A1–A9 (A1, A4, A7, A8 dùng lại task 1 của E4).
+3. Tinh chỉnh E5 trên val (`--mode knn`, nhiệt độ). V5 (độ trễ), V6 (bảng tổng hợp). Demo nếu nhóm chốt QĐ-5.
+4. Hạn credit **24/10/2026**: tải kết quả về (guide §9), xóa VM và ổ trước ngày đó.
 
 ### Lưu ý kỹ thuật
 
