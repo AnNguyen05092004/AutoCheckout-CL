@@ -192,14 +192,24 @@ Mọi thông tin cần để làm tiếp nằm trong file này, `IMPLEMENTATION_
   - Val mAP@A AP50 0,995 (AP 0,858); test AP50 0,992 (AP 0,855).
   - Test cAcc **0,680**; **0,836 khi có NMS** (mCIoU 0,978).
   - Ngay cả mô hình học một lần cũng có dự đoán trùng, nên NMS lúc đếm nên là bước chuẩn.
-- **ĐANG CHẠY (từ 03:43 UTC 30/09):** E4 với F14. Train log xác nhận `pseudo_dedup_iou=0.5`, `tf32=1`, `eff_batch_size=4`, nền FSA.
-- Hàng đợi (tmux `queue`): **E4 (F14) → E1 → E3 → E2 → E3_coco**.
-  - E4 xong khoảng 19:30 UTC 30/09; cả hàng đợi xong khoảng 03/10.
+- **E4 với F14 xong (03:43 → 19:18 UTC 30/09).** Metrics ở `results/experiments/E4/`. Kết quả đợt 5:
+
+  | | E4_noF14 | E4 (F14) | E0 |
+  |---|---|---|---|
+  | mAP@A AP50 val / test | 0,938 / 0,930 | **0,952 / 0,947** | 0,995 / 0,992 |
+  | Độ quên | 0,012 | −0,003 | – |
+  | cAcc test, không NMS / có NMS | 0,100 / 0,396 | **0,361 / 0,425** | 0,680 / 0,836 |
+
+  - Phát hiện trùng lặp trên SKU đợt 1 giảm từ 12.000 xuống 409.
+  - **Nút thắt tiếp theo: học SKU mới.** SKU đợt 2–5 bị đếm sai khoảng 20% số vật (đợt 1: khoảng 7%, E0: khoảng 4%). Điểm tin cậy trung vị của SKU mới chỉ 0,24–0,39, so với 0,73 ở đợt 1 và 0,85 ở E0. Ngưỡng riêng cho từng đợt không cải thiện.
+  - Tóm lại: ổn định rất tốt nhưng khó học cái mới, do nền FSA đóng băng chỉ học trên 100 SKU đầu.
+- **ĐANG CHẠY (từ 19:18 UTC 30/09):** E1, sau đó E3 → E2 → E3_coco (tmux `queue`).
+  - Cả hàng đợi xong khoảng 03/10.
   - Hàng đợi đang chạy vẫn là `run_queue.sh` bản cũ (trap ghi `queue finished`); bản mới có hiệu lực từ lần khởi động sau.
 
 ### Việc tiếp theo, theo thứ tự
 
-1. Khi E4 (F14) xong: so với E4_noF14 (mAP, cAcc, audit V4), cập nhật báo cáo `docs/status-2026-09-29.md`.
+1. E4 (F14) đã so với E4_noF14 (xem trên). Việc tiếp theo: tìm cách cải thiện khả năng học SKU mới. Hướng thử: lr lớn hơn hoặc nhiều epoch hơn cho prompt và classifier ở task ≥ 2, hoặc mở băng một phần decoder. Đánh giá bằng ablation 3 task, rồi so với E1.
    - Đã có `tools/eval_count.py --nms-iou 0.5` (commit `b2bacd0`). `run_exp.sh` giờ ghi thêm `metrics_count_test_nms0.5.*` cho mỗi run.
      Đã tính cho các run cũ: cAcc test có NMS của E4_noF14 là 0,785 / 0,516 / 0,384 / 0,353 / **0,396** (đợt 1–5); FSA là 0,767 (không NMS: 0,684); E5 ≈ 0.
 2. Khi E0, E3, E4 (F14) và E5 xong: đánh giá mốc G2, rồi xếp A1–A9 (A1, A4, A7, A8 dùng lại task 1 của E4).
