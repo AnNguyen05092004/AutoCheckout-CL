@@ -67,4 +67,7 @@ for split in val test; do
 done
 $PYTHON -m tools.eval_count --run-dir "$RUN_DIR" --val-ann "$TASK_DIR/val_full.json" \
     --test-ann "$TASK_DIR/test_full.json" --task-config "$TASK_CFG" > "$RUN_DIR/metrics_count_test.md"
+# Also with one detection per object (class-agnostic NMS, see tools/eval_count.py): both are reported.
+$PYTHON -m tools.eval_count --run-dir "$RUN_DIR" --val-ann "$TASK_DIR/val_full.json" \
+    --test-ann "$TASK_DIR/test_full.json" --task-config "$TASK_CFG" --nms-iou 0.5 > "$RUN_DIR/metrics_count_test_nms0.5.md"
 echo "== $EXP finished ($(date '+%F %T'))"

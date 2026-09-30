@@ -32,6 +32,7 @@ from typing import Any
 import numpy as np
 from pycocotools.coco import COCO
 
+from autocheckout.cl_metrics import box_iou
 from autocheckout.predictions import Predictions
 
 #: Deterministic grid, plan section 6.5: 0.05..0.95 step 0.01 (91 points).
@@ -43,6 +44,30 @@ ZERO_GT_NOTE = (
     "classes with zero GT in the evaluated image subset are excluded from the mCCD/mCIoU "
     "class averages (divided by K_eff, not K); cAcc and ACD are unaffected"
 )
+
+
+def dedup_detections(preds: Predictions, iou_threshold: float) -> Predictions:
+    """One detection per physical object: class-agnostic greedy NMS per image on the top-1-per-query rows,
+    highest score first (counting option, 30/09). DETR models are meant to need no NMS, but a model trained
+    on duplicate pseudo-labels reports some objects twice (F14). Rows below the lowest threshold of the grid
+    are dropped first: they never count and cannot suppress a higher-scoring row."""
+    top1 = preds.top1_per_query()
+    top1 = top1.subset(top1.score >= THRESHOLD_GRID[0])
+    if len(top1) == 0:
+        return top1
+    keep = np.zeros(len(top1), dtype=bool)
+    order = np.lexsort((-top1.score, top1.image_id))
+    image_ids = top1.image_id[order]
+    starts = np.flatnonzero(np.r_[True, image_ids[1:] != image_ids[:-1]])
+    for start, end in zip(starts, np.r_[starts[1:], len(order)], strict=True):
+        rows = order[start:end]
+        ious = box_iou(top1.boxes[rows], top1.boxes[rows])
+        suppressed = np.zeros(len(rows), dtype=bool)
+        for i in range(len(rows)):
+            if not suppressed[i]:
+                keep[rows[i]] = True
+                suppressed |= ious[i] >= iou_threshold
+    return top1.subset(keep)
 
 
 def gt_counts(coco_gt: COCO, image_ids: Sequence[int], labels: Sequence[int]) -> np.ndarray:

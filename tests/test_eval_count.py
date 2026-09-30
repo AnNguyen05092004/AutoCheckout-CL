@@ -74,3 +74,25 @@ def test_test_ann_md5_mismatch_is_refused(tmp_path):
     cfg = three_task_config()
     with pytest.raises(ValueError, match="ann_md5"):
         eval_count.evaluate_run(run_dir, val_path, test_path, cfg)
+
+
+def test_nms_option_counts_a_duplicated_object_once(tmp_path, monkeypatch):
+    run_dir, val_path, test_path, cfg_path = _write_run(tmp_path)
+    test_file = run_dir / "task_1" / "pred_test.npz"
+    preds = eval_count.load_predictions(test_file)
+    duplicate = Predictions(  # image 10's object reported twice by two queries
+        image_id=[10, 10, 11], query=[0, 1, 0], label=[0, 0, 0], score=[0.9, 0.8, 0.9], boxes=[[0, 0, 5, 5]] * 3,
+        meta=preds.meta)
+    save_predictions(test_file, duplicate)
+    cfg = three_task_config()
+    assert eval_count.evaluate_run(run_dir, val_path, test_path, cfg)["stages"][1]["test"]["overall"]["cAcc"] \
+        == pytest.approx(0.5)
+    result = eval_count.evaluate_run(run_dir, val_path, test_path, cfg, nms_iou=0.5)
+    assert result["nms_iou"] == 0.5 and result["stages"][1]["test"]["overall"]["cAcc"] == pytest.approx(1.0)
+
+    argv = ["eval_count", "--run-dir", str(run_dir), "--val-ann", str(val_path), "--test-ann", str(test_path),
+            "--task-config", str(cfg_path), "--nms-iou", "0.5"]
+    monkeypatch.setattr(sys, "argv", argv)
+    eval_count.main()
+    assert (run_dir / "metrics_count_test_nms0.5.json").is_file()
+    assert not (run_dir / "metrics_count_test.json").exists()

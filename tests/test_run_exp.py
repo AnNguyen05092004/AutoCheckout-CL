@@ -65,7 +65,8 @@ def test_runs_tasks_then_evaluation_and_resumes_only_missing_work(tmp_path):
     lines = calls(tmp_path)
     assert [c.split("--start_task ")[1].split()[0] for c in main_calls(lines)] == ["1", "2"]
     assert all("--n_tasks" in c and "--predict_only" not in c for c in main_calls(lines))
-    assert sum("tools.eval_cl" in c for c in lines) == 2 and sum("tools.eval_count" in c for c in lines) == 1
+    assert sum("tools.eval_cl" in c for c in lines) == 2 and sum("tools.eval_count" in c for c in lines) == 2
+    assert sum("--nms-iou 0.5" in c for c in lines) == 1
     run_dir = tmp_path / "runs" / "demo"
     assert (run_dir / "config.sh").read_text() == CONFIG
 

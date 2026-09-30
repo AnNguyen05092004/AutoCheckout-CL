@@ -5,6 +5,7 @@ from autocheckout.cl_metrics import load_coco
 from autocheckout.counting import (
     THRESHOLD_GRID,
     counting_scores,
+    dedup_detections,
     gt_counts,
     oracle_by_level,
     pred_counts,
@@ -162,3 +163,16 @@ def test_count_matrix_matches_a_plain_loop_on_random_rows():
         if score >= 0.3 and img in image_ids and lab in labels:
             expected[image_ids.index(img), labels.index(lab)] += 1
     np.testing.assert_array_equal(count_matrix(preds, image_ids, labels, 0.3), expected)
+
+
+def test_dedup_detections_keeps_the_best_row_per_object_across_classes_within_an_image():
+    preds = Predictions(
+        image_id=[1, 1, 1, 2, 1], query=[0, 1, 2, 0, 3], label=[0, 1, 0, 0, 2],
+        score=[0.9, 0.8, 0.7, 0.6, 0.01],
+        boxes=[[0, 0, 10, 10], [0, 0, 10, 9], [20, 20, 30, 30], [0, 0, 10, 10], [20, 20, 30, 30]],
+    )
+    kept = dedup_detections(preds, 0.5)
+    # (1, 1): same object as (1, 0) with another class -> dropped; (1, 2): another object; (2, 0): same box in
+    # another image; (1, 3): below the lowest threshold of the grid
+    assert sorted(zip(kept.image_id.tolist(), kept.query.tolist(), strict=True)) == [(1, 0), (1, 2), (2, 0)]
+    assert len(dedup_detections(kept.subset(kept.score > 1), 0.5)) == 0

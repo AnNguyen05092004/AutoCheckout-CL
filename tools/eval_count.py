@@ -23,6 +23,7 @@ from autocheckout.counting import (
     THRESHOLD_GRID,
     TIE_BREAK_NOTE,
     ZERO_GT_NOTE,
+    dedup_detections,
     oracle_by_level,
     scores_by_level,
     select_threshold,
@@ -32,7 +33,8 @@ from autocheckout.predictions import load_predictions
 from autocheckout.taskcfg import TaskConfig
 
 
-def evaluate_run(run_dir: Path, val_ann_path: Path, test_ann_path: Path, cfg: TaskConfig) -> dict[str, Any]:
+def evaluate_run(run_dir: Path, val_ann_path: Path, test_ann_path: Path, cfg: TaskConfig,
+                 nms_iou: float = 0.0) -> dict[str, Any]:
     val_md5 = md5_file(val_ann_path)
     test_md5 = md5_file(test_ann_path)
     coco_val = load_coco(load_json(val_ann_path))
@@ -53,6 +55,8 @@ def evaluate_run(run_dir: Path, val_ann_path: Path, test_ann_path: Path, cfg: Ta
         seen_classes = check_stage_meta(val_preds.meta, cfg, stage)
         check_stage_meta(test_preds.meta, cfg, stage)
         labels = list(range(seen_classes))
+        if nms_iou > 0:
+            val_preds, test_preds = dedup_detections(val_preds, nms_iou), dedup_detections(test_preds, nms_iou)
 
         threshold, val_scores = select_threshold(coco_val, val_preds, labels)
         stages[stage] = {
@@ -73,6 +77,7 @@ def evaluate_run(run_dir: Path, val_ann_path: Path, test_ann_path: Path, cfg: Ta
         "threshold_grid": list(THRESHOLD_GRID),
         "tie_break": TIE_BREAK_NOTE,
         "zero_gt_class_handling": ZERO_GT_NOTE,
+        "nms_iou": nms_iou,
         "stages": stages,
     }
 
@@ -82,7 +87,8 @@ def _fmt(x: float) -> str:
 
 
 def to_markdown(result: dict[str, Any]) -> str:
-    lines = [f"# Counting metrics: {result['run_dir']} (test, threshold picked on val)", ""]
+    nms = f", class-agnostic NMS at IoU {result['nms_iou']}" if result.get("nms_iou") else ""
+    lines = [f"# Counting metrics: {result['run_dir']} (test, threshold picked on val{nms})", ""]
     lines.append("| stage | threshold | val cAcc | test cAcc | test ACD | test mCCD | test mCIoU | "
                   "oracle cAcc | oracle threshold |")
     lines.append("|---|---|---|---|---|---|---|---|---|")
@@ -103,12 +109,16 @@ def main() -> None:
     parser.add_argument("--val-ann", required=True, type=Path)
     parser.add_argument("--test-ann", required=True, type=Path)
     parser.add_argument("--task-config", required=True, type=Path)
+    parser.add_argument("--nms-iou", type=float, default=0.0,
+                        help="one detection per object: class-agnostic NMS at this IoU before counting (0 = off); "
+                             "writes metrics_count_test_nms<iou>.json")
     args = parser.parse_args()
 
     cfg = TaskConfig.load(args.task_config)
-    result = evaluate_run(args.run_dir, args.val_ann, args.test_ann, cfg)
+    result = evaluate_run(args.run_dir, args.val_ann, args.test_ann, cfg, nms_iou=args.nms_iou)
 
-    out_path = args.run_dir / "metrics_count_test.json"
+    suffix = f"_nms{args.nms_iou:g}" if args.nms_iou > 0 else ""
+    out_path = args.run_dir / f"metrics_count_test{suffix}.json"
     save_json(out_path, result, indent=1)
     print(to_markdown(result))
     print(f"\nWrote {out_path}")
