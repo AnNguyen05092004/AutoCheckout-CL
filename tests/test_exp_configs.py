@@ -30,6 +30,7 @@ def test_config_parses(config):
     assert parsed.n_gpus == 1 and parsed.accelerator == "gpu" and parsed.lr == 1e-4
     assert parsed.eff_batch_size == (32 if exp in PILOT_EFF_BATCH_32 else 4)
     assert parsed.tf32 == (0 if exp in PILOT_EFF_BATCH_32 | NO_TF32 or exp.endswith("_eb4") else 1)
+    assert parsed.pseudo_dedup_iou == (0.0 if exp in PILOT_EFF_BATCH_32 | {"E4_noF14"} or exp.endswith("_eb4") else 0.5)
     if parsed.use_prompts:
         assert parsed.n_classes == 225 and parsed.freeze == "backbone,encoder,decoder"
     else:

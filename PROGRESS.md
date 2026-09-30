@@ -181,19 +181,21 @@ Mọi thông tin cần để làm tiếp nằm trong file này, `IMPLEMENTATION_
   - Ở đợt 5, 24,6% (12.000/48.843) phát hiện của SKU đợt 1 trên test là **trùng lặp**: cùng vật, cùng lớp. Ở đợt 1 chỉ 0,9%, đợt 2 là 1,9%. Nhầm SKU mới thành cũ hay rơi vào nền đều không đáng kể.
   - **Audit V4** (`ppg_audit.py`, nay có mục `duplicate`) trên E4 cho thấy nhãn giả trùng chiếm 3,7% ở task 2 và **31% ở task 5**. Precision của nhánh prototype chỉ 0,17.
   - Cơ chế: nhánh prototype nhận các query phụ trên vật đã có nhãn, vì đặc trưng của chúng khớp prototype. Student học ra dự đoán trùng, rồi làm teacher cho đợt sau, nên lỗi dồn qua các đợt.
-  - **F14 (`--pseudo_dedup_iou`, commit `4c7bea8`, mặc định tắt):** NMS không phân biệt lớp giữa các nhãn giả. Audit lại task 5 với cùng teacher: nhãn trùng từ 2.505 còn 21, precision từ 0,595 lên 0,893, recall giữ 0,956.
+  - **F14 (`--pseudo_dedup_iou`, commit `4c7bea8`; nhóm chốt 30/09, bật 0,5 trong `common.sh`):** NMS không phân biệt lớp giữa các nhãn giả. Audit lại task 5 với cùng teacher: nhãn trùng từ 2.505 còn 21, precision từ 0,595 lên 0,893, recall giữ 0,956.
   - Loại trùng ngay lúc dự đoán (NMS 0,5 trên file dự đoán của E4, chưa train lại): cAcc test đợt 5 từ 0,100 lên **0,396**, ACD từ 4,41 xuống 1,82. Đợt 1: từ 0,744 lên 0,785.
   - Script chẩn đoán nằm trong scratchpad của session (`diag_count_groups.py`, `diag_extra_old.py`, `diag_count_nms.py`, `diag_count_unlearned.py`); bản chép trên VM ở `/tmp`.
-- **ĐANG CHẠY:** hàng đợi (tmux `queue`), **E0 → E1 → E3 → E2 → E3_coco**. E1 đã được đưa lên trước E3 lúc 30/09: E1 không dùng nhãn giả nên không phụ thuộc quyết định F14.
-  - E0 xong khoảng 04:30 UTC 30/09; E1 xong khoảng 18:30 UTC 30/09; sau đó đến E3.
+- **30/09, khoảng 07:30 giờ VN, nhóm chốt F14:** bật cho mọi run có nhãn giả; chạy lại E4 ngay sau E0.
+  - Bản E4 cũ đổi tên thành **E4_noF14**: `/data/runs/E4_noF14`, `configs/exp/E4_noF14.sh`, `results/experiments/E4_noF14/`.
+  - Audit task 5 với F14 nằm ở `E4_noF14/task_5/ppg_audit_f14.json`.
+  - `queue.log` đã sửa `E4 exit=0` thành `E4_noF14 exit=0`, để hàng đợi chạy E4 mới.
+- **ĐANG CHẠY:** hàng đợi (tmux `queue`), **E0 → E4 (F14) → E1 → E3 → E2 → E3_coco**.
+  - E0 xong khoảng 03:45 UTC 30/09; E4 xong khoảng 20:00 UTC 30/09; cả hàng đợi xong khoảng 03/10.
   - Hàng đợi đang chạy vẫn là `run_queue.sh` bản cũ (trap ghi `queue finished`); bản mới có hiệu lực từ lần khởi động sau.
 
 ### Việc tiếp theo, theo thứ tự
 
-1. **Chờ nhóm quyết F14** (trước khi E3 bắt đầu, khoảng 18:30 UTC 30/09). Đề xuất:
-   - bật `--pseudo_dedup_iou 0.5` trong `configs/exp/common.sh` cho mọi run có nhãn giả (E2, E3, E4, E3_coco, A*);
-   - đổi tên `/data/runs/E4` thành `E4_noF14` (bản đối chứng) và chạy lại E4 ngay sau thí nghiệm đang chạy (+16 giờ);
-   - thêm tùy chọn NMS không phân biệt lớp lúc đếm vào `tools/eval_count.py`, rồi báo cáo cả hai (có và không có NMS).
+1. Khi E4 (F14) xong: so với E4_noF14 (mAP, cAcc, audit V4), cập nhật báo cáo `docs/status-2026-09-29.md`.
+   - Thêm tùy chọn NMS không phân biệt lớp lúc đếm vào `tools/eval_count.py`, rồi báo cáo cả hai (có và không có NMS). Nhóm đã đồng ý.
 2. Khi E0, E3, E4 (F14) và E5 xong: đánh giá mốc G2, rồi xếp A1–A9 (A1, A4, A7, A8 dùng lại task 1 của E4).
 3. Tinh chỉnh E5 trên val (`--mode knn`, nhiệt độ). V5 (độ trễ), V6 (bảng tổng hợp). Demo nếu nhóm chốt QĐ-5.
 4. Hạn credit **24/10/2026**: tải kết quả về (guide §9), xóa VM và ổ trước ngày đó.
