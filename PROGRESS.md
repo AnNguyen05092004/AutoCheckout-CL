@@ -188,8 +188,13 @@ Mọi thông tin cần để làm tiếp nằm trong file này, `IMPLEMENTATION_
   - Bản E4 cũ đổi tên thành **E4_noF14**: `/data/runs/E4_noF14`, `configs/exp/E4_noF14.sh`, `results/experiments/E4_noF14/`.
   - Audit task 5 với F14 nằm ở `E4_noF14/task_5/ppg_audit_f14.json`.
   - `queue.log` đã sửa `E4 exit=0` thành `E4_noF14 exit=0`, để hàng đợi chạy E4 mới.
-- **ĐANG CHẠY:** hàng đợi (tmux `queue`), **E0 → E4 (F14) → E1 → E3 → E2 → E3_coco**.
-  - E0 xong khoảng 03:45 UTC 30/09; E4 xong khoảng 20:00 UTC 30/09; cả hàng đợi xong khoảng 03/10.
+- **E0 xong (19:13 UTC 29/09 → 03:43 UTC 30/09):** cận trên, học một lần cả 200 SKU trong 12 epoch.
+  - Val mAP@A AP50 0,995 (AP 0,858); test AP50 0,992 (AP 0,855).
+  - Test cAcc **0,680**; **0,836 khi có NMS** (mCIoU 0,978).
+  - Ngay cả mô hình học một lần cũng có dự đoán trùng, nên NMS lúc đếm nên là bước chuẩn.
+- **ĐANG CHẠY (từ 03:43 UTC 30/09):** E4 với F14. Train log xác nhận `pseudo_dedup_iou=0.5`, `tf32=1`, `eff_batch_size=4`, nền FSA.
+- Hàng đợi (tmux `queue`): **E4 (F14) → E1 → E3 → E2 → E3_coco**.
+  - E4 xong khoảng 19:30 UTC 30/09; cả hàng đợi xong khoảng 03/10.
   - Hàng đợi đang chạy vẫn là `run_queue.sh` bản cũ (trap ghi `queue finished`); bản mới có hiệu lực từ lần khởi động sau.
 
 ### Việc tiếp theo, theo thứ tự
