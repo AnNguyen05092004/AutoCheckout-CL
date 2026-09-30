@@ -195,7 +195,8 @@ Mọi thông tin cần để làm tiếp nằm trong file này, `IMPLEMENTATION_
 ### Việc tiếp theo, theo thứ tự
 
 1. Khi E4 (F14) xong: so với E4_noF14 (mAP, cAcc, audit V4), cập nhật báo cáo `docs/status-2026-09-29.md`.
-   - Thêm tùy chọn NMS không phân biệt lớp lúc đếm vào `tools/eval_count.py`, rồi báo cáo cả hai (có và không có NMS). Nhóm đã đồng ý.
+   - Đã có `tools/eval_count.py --nms-iou 0.5` (commit `b2bacd0`). `run_exp.sh` giờ ghi thêm `metrics_count_test_nms0.5.*` cho mỗi run.
+     Đã tính cho các run cũ: cAcc test có NMS của E4_noF14 là 0,785 / 0,516 / 0,384 / 0,353 / **0,396** (đợt 1–5); FSA là 0,767 (không NMS: 0,684); E5 ≈ 0.
 2. Khi E0, E3, E4 (F14) và E5 xong: đánh giá mốc G2, rồi xếp A1–A9 (A1, A4, A7, A8 dùng lại task 1 của E4).
 3. Tinh chỉnh E5 trên val (`--mode knn`, nhiệt độ). V5 (độ trễ), V6 (bảng tổng hợp). Demo nếu nhóm chốt QĐ-5.
 4. Hạn credit **24/10/2026**: tải kết quả về (guide §9), xóa VM và ổ trước ngày đó.
