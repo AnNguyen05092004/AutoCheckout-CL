@@ -208,7 +208,13 @@ Mọi thông tin cần để làm tiếp nằm trong file này, `IMPLEMENTATION_
   - Test cAcc ≈ 0 (ACD 16,4).
   - **Kết luận:** các thành phần chống quên của PDP (pool riêng, nhãn giả) là cần thiết; nền FSA đóng băng không tự chống quên. E1 học SKU mới tốt hơn E4 (0,959 so với 0,925), xác nhận đây là đánh đổi giữa ổn định và khả năng học.
   - AP chặt của E1 ở đợt 1 là 0,850 (FSA 0,810, E4 0,712). Mức AP thấp hơn của E4 đến từ augmentation hoặc pool riêng; E3 sẽ tách được.
-- **ĐANG CHẠY (từ 04:59 UTC 01/10):** E3 (F14, không augmentation, nền FSA), sau đó E2 → E3_coco (tmux `queue`).
+- **E3 xong (04:59 → 21:18 UTC 01/10):** PDP + F14 trên nền FSA, không có I2 (augmentation) và I3.
+  - Val ở đợt 5: mAP@A AP50 0,887 (E4: 0,952). SKU mới qua các đợt 2 → 5: 0,947 → 0,839 → 0,764 → **0,683** (E4: 0,919 → 0,925). SKU cũ 0,920. Độ quên ≈ 0.
+  - AP chặt ở đợt 1 là **0,851** (E4: 0,712), nên augmentation (I2) làm box kém khít hơn.
+  - cAcc test đợt 5: 0,118 / 0,200 khi có NMS (E4: 0,361 / 0,425).
+  - Phân tích lỗi đếm ở đợt 5: SKU đợt 2 bị đếm thừa 8.094 lần (89% số vật); SKU đợt 3–5 bị đếm thiếu 40–64%. Ở E4, đợt 2 chỉ thừa 739, các đợt sau thiếu 13–14%. Vậy SKU mới bị gán thành SKU của các đợt trước.
+  - **Kết luận: I3 là then chốt.** Không có I3, teacher gán nhãn SKU cũ lên vật thuộc SKU mới (vốn đã có nhãn thật); hai nhãn mâu thuẫn làm student học sai, và lỗi dồn qua các đợt. A6 (E4 bỏ augmentation, tức E3 + I3) sẽ tách riêng tác dụng của I2 và I3.
+- **ĐANG CHẠY (từ 21:18 UTC 01/10):** E2 (nhãn giả theo ngưỡng 0,65, top-5, chỉ pool riêng, F14), sau đó E3_coco. Hàng đợi xong khoảng 21:00 UTC 02/10, rồi VM tự tắt.
   - Cả hàng đợi xong khoảng 03/10.
   - Hàng đợi đang chạy vẫn là `run_queue.sh` bản cũ (trap ghi `queue finished`); bản mới có hiệu lực từ lần khởi động sau.
 
