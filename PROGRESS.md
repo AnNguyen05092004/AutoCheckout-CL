@@ -203,7 +203,12 @@ Mọi thông tin cần để làm tiếp nằm trong file này, `IMPLEMENTATION_
   - Phát hiện trùng lặp trên SKU đợt 1 giảm từ 12.000 xuống 409.
   - **Nút thắt tiếp theo: học SKU mới.** SKU đợt 2–5 bị đếm sai khoảng 20% số vật (đợt 1: khoảng 7%, E0: khoảng 4%). Điểm tin cậy trung vị của SKU mới chỉ 0,24–0,39, so với 0,73 ở đợt 1 và 0,85 ở E0. Ngưỡng riêng cho từng đợt không cải thiện.
   - Tóm lại: ổn định rất tốt nhưng khó học cái mới, do nền FSA đóng băng chỉ học trên 100 SKU đầu.
-- **ĐANG CHẠY (từ 19:18 UTC 30/09):** E1, sau đó E3 → E2 → E3_coco (tmux `queue`).
+- **E1 xong (19:18 UTC 30/09 → 04:59 UTC 01/10, khoảng 1,9 giờ mỗi task vì không có teacher):** train tuần tự, chỉ pool chung, không nhãn giả, nền FSA.
+  - Val ở đợt 5: mAP@A AP50 0,689; SKU đợt 5 đạt 0,959, SKU cũ 0,652; **độ quên 0,237**. SKU đợt 1 rơi từ 0,988 xuống 0,633.
+  - Test cAcc ≈ 0 (ACD 16,4).
+  - **Kết luận:** các thành phần chống quên của PDP (pool riêng, nhãn giả) là cần thiết; nền FSA đóng băng không tự chống quên. E1 học SKU mới tốt hơn E4 (0,959 so với 0,925), xác nhận đây là đánh đổi giữa ổn định và khả năng học.
+  - AP chặt của E1 ở đợt 1 là 0,850 (FSA 0,810, E4 0,712). Mức AP thấp hơn của E4 đến từ augmentation hoặc pool riêng; E3 sẽ tách được.
+- **ĐANG CHẠY (từ 04:59 UTC 01/10):** E3 (F14, không augmentation, nền FSA), sau đó E2 → E3_coco (tmux `queue`).
   - Cả hàng đợi xong khoảng 03/10.
   - Hàng đợi đang chạy vẫn là `run_queue.sh` bản cũ (trap ghi `queue finished`); bản mới có hiệu lực từ lần khởi động sau.
 
