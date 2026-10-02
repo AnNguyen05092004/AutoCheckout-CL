@@ -214,7 +214,10 @@ Mọi thông tin cần để làm tiếp nằm trong file này, `IMPLEMENTATION_
   - cAcc test đợt 5: 0,118 / 0,200 khi có NMS (E4: 0,361 / 0,425).
   - Phân tích lỗi đếm ở đợt 5: SKU đợt 2 bị đếm thừa 8.094 lần (89% số vật); SKU đợt 3–5 bị đếm thiếu 40–64%. Ở E4, đợt 2 chỉ thừa 739, các đợt sau thiếu 13–14%. Vậy SKU mới bị gán thành SKU của các đợt trước.
   - **Kết luận: I3 là then chốt.** Không có I3, teacher gán nhãn SKU cũ lên vật thuộc SKU mới (vốn đã có nhãn thật); hai nhãn mâu thuẫn làm student học sai, và lỗi dồn qua các đợt. A6 (E4 bỏ augmentation, tức E3 + I3) sẽ tách riêng tác dụng của I2 và I3.
-- **ĐANG CHẠY (từ 21:18 UTC 01/10):** E2 (nhãn giả theo ngưỡng 0,65, top-5, chỉ pool riêng, F14), sau đó E3_coco. Hàng đợi xong khoảng 21:00 UTC 02/10, rồi VM tự tắt.
+- **ĐANG CHẠY (từ 21:18 UTC 01/10):** E2 (nhãn giả theo ngưỡng 0,65, top-5, chỉ pool riêng, F14), dự kiến xong khoảng 11:05 UTC 02/10.
+- **TẠM DỪNG SAU E2 (nhóm yêu cầu, 02/10 khoảng 14:30 giờ VN).** Dòng `E3_coco` trong `/data/runs/queue.txt` đã bị comment (bản cũ: `queue.txt.bak4`), nên VM tự tắt khi E2 xong.
+  - Việc còn lại: bật VM khoảng 10 phút, đọc và chẩn đoán E2, chép metrics về `results/experiments/E2`, tắt VM, rồi cập nhật tài liệu.
+  - **Chạy tiếp:** bỏ `#` ở dòng `E3_coco`; thêm ablation nếu nhóm chốt; `git fetch` + `reset` repo trên VM; rồi `tmux new -d -s queue "bash ~/AutoCheckout-CL/scripts/run_queue.sh"`.
   - Cả hàng đợi xong khoảng 03/10.
   - Hàng đợi đang chạy vẫn là `run_queue.sh` bản cũ (trap ghi `queue finished`); bản mới có hiệu lực từ lần khởi động sau.
 
