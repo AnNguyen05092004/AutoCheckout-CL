@@ -76,8 +76,8 @@ Trạng thái: **Xong** = đạt tiêu chí nghiệm thu trong plan; **Đang là
 |---|---|---|
 | G0 | Xong (28/09) | Smoke GPU trên ảnh thật |
 | P1–P3, G1 | Xong, có điều chỉnh (29/09) | Pilot ở batch hiệu dụng 32 không học được SKU → chẩn đoán, chuyển sang batch 4; P3_eb4 đạt mAP@A 0,78 trên val. Chi tiết ở phần Handoff |
-| E0–E5, G2 | Chưa | |
-| A1–A9 | Chưa | |
+| E0–E5, G2 | Xong, trừ E3_coco (02/10) | E0, E1, E2, E3, E4 (F14), E4_noF14, E5 xong. G2 đạt: E4 vượt xa E5, E0 cao. Bảng ở `docs/status-2026-09-29.md` mục 5 |
+| A1–A9 | Chưa | Chờ nhóm quyết (đề xuất rút gọn: A6, A1–A4) |
 | G3 | Chưa | |
 
 ## Nhật ký
@@ -107,7 +107,7 @@ Trạng thái: **Xong** = đạt tiêu chí nghiệm thu trong plan; **Đang là
 - **28/09/2026**: nhóm chốt E5 = phương án b; giữ 14 snapshot ổ cũ; đẩy repo lên GitHub (public). Xong R1, R2, R3, I1–I5, B1, B2, V4, V5 (code), cấu hình mọi thí nghiệm, script VM, viết lại guide; V2 nhanh hơn khoảng 5 lần (chính xác tuyệt đối). 178 test đạt.
 - 28/09: nhóm chốt E5 = phương án b; giữ 14 snapshot ổ cũ. Kiểm tra nguồn dữ liệu: mirror HuggingFace thiếu tên file và `level`, nên vẫn cần Kaggle. Ảnh quầy RPC không cố định 1800 px (khoảng 1750–1890, vuông); DL2 đã xử lý theo từng ảnh.
 
-## Handoff (cập nhật 30/09/2026, khoảng 03:00 giờ VN — đọc phần này trước tiên)
+## Handoff (cập nhật 02/10/2026, khoảng 22:30 giờ VN — đọc phần này trước tiên)
 
 Mọi thông tin cần để làm tiếp nằm trong file này, `IMPLEMENTATION_PLAN.md` (v1.3 + phụ lục B, C; F13 ở §6.3), `GCP_TRAINING_GUIDE.md` và `docs/formats.md`.
 
@@ -214,21 +214,29 @@ Mọi thông tin cần để làm tiếp nằm trong file này, `IMPLEMENTATION_
   - cAcc test đợt 5: 0,118 / 0,200 khi có NMS (E4: 0,361 / 0,425).
   - Phân tích lỗi đếm ở đợt 5: SKU đợt 2 bị đếm thừa 8.094 lần (89% số vật); SKU đợt 3–5 bị đếm thiếu 40–64%. Ở E4, đợt 2 chỉ thừa 739, các đợt sau thiếu 13–14%. Vậy SKU mới bị gán thành SKU của các đợt trước.
   - **Kết luận: I3 là then chốt.** Không có I3, teacher gán nhãn SKU cũ lên vật thuộc SKU mới (vốn đã có nhãn thật); hai nhãn mâu thuẫn làm student học sai, và lỗi dồn qua các đợt. A6 (E4 bỏ augmentation, tức E3 + I3) sẽ tách riêng tác dụng của I2 và I3.
-- **ĐANG CHẠY (từ 21:18 UTC 01/10):** E2 (nhãn giả theo ngưỡng 0,65, top-5, chỉ pool riêng, F14), dự kiến xong khoảng 11:05 UTC 02/10.
-- **TẠM DỪNG SAU E2 (nhóm yêu cầu, 02/10 khoảng 14:30 giờ VN).** Dòng `E3_coco` trong `/data/runs/queue.txt` đã bị comment (bản cũ: `queue.txt.bak4`), nên VM tự tắt khi E2 xong.
-  - Việc còn lại: bật VM khoảng 10 phút, đọc và chẩn đoán E2, chép metrics về `results/experiments/E2`, tắt VM, rồi cập nhật tài liệu.
-  - **Chạy tiếp:** bỏ `#` ở dòng `E3_coco`; thêm ablation nếu nhóm chốt; `git fetch` + `reset` repo trên VM; rồi `tmux new -d -s queue "bash ~/AutoCheckout-CL/scripts/run_queue.sh"`.
-  - Cả hàng đợi xong khoảng 03/10.
-  - Hàng đợi đang chạy vẫn là `run_queue.sh` bản cũ (trap ghi `queue finished`); bản mới có hiệu lực từ lần khởi động sau.
+- **E2 xong (21:18 UTC 01/10 → 11:03 UTC 02/10, `exit=0`):** kiểu MD-DETR (chỉ pool riêng, nhãn giả theo ngưỡng 0,65, top-5, F14), nền FSA.
+  - Val ở đợt 5: SKU mới 0,946, SKU cũ 0,757, tất cả 0,778; **độ quên 0,149**. SKU đợt 1 rơi từ 0,990 xuống 0,735.
+  - Test cAcc 0,007, hoặc 0,009 khi có NMS (ACD 12,7).
+  - Metrics ở `results/experiments/E2/`. Chưa chạy `diag_*` cho E2, vì các script trong `/tmp` của VM mất sau khi VM khởi động lại; bản gốc nằm trong scratchpad của session cũ.
+- **Bảng so sánh sau đợt 5:** xem `docs/status-2026-09-29.md` mục 5.
+  - Kết luận: E4 = PDP + F14 + I2 + I3 tốt nhất. E1 quên 0,24, E2 quên 0,15; PDP (E3, E4) không quên; nhưng thiếu I3 (E3) thì SKU mới học kém dần.
+- **TRẠNG THÁI 02/10, khoảng 22:30 giờ VN: TẠM DỪNG, VM `auto-cl` TERMINATED** (on-demand).
+  - Hàng đợi tự dừng sau E2 (`queue finished` lúc 11:03 UTC). Lần bật lại lúc 14:42 UTC gặp stockout L4 (`ZONE_RESOURCE_POOL_EXHAUSTED`); bật lại thành công lúc khoảng 15:30 UTC để lấy kết quả E2, rồi tắt.
+  - Trong `queue.txt`, dòng `E3_coco` đang bị comment (bản trước khi sửa: `queue.txt.bak4`).
+  - Ổ `auto-cl` có lịch snapshot tự động hằng ngày lúc 13:03 UTC; lịch này đã có từ trước, không do agent tạo. Project còn VM `instance-20260803-171955` (us-central1-a, c3-standard-4, TERMINATED); VM này của nhóm, không thuộc đồ án này.
+  - **Chạy tiếp:**
+    1. bật VM (`gcloud compute instances start auto-cl ...`; có thể gặp stockout, thử lại sau);
+    2. trên VM: `cd ~/AutoCheckout-CL && git fetch -q origin && git reset -q --hard origin/main` (lấy `run_queue.sh` mới);
+    3. bỏ `#` ở dòng `E3_coco` trong `/data/runs/queue.txt` và/hoặc thêm ablation (ví dụ `A6`, `A1`…`A4`);
+    4. `tmux new -d -s queue "bash ~/AutoCheckout-CL/scripts/run_queue.sh"`.
 
 ### Việc tiếp theo, theo thứ tự
 
-1. E4 (F14) đã so với E4_noF14 (xem trên). Việc tiếp theo: tìm cách cải thiện khả năng học SKU mới. Hướng thử: lr lớn hơn hoặc nhiều epoch hơn cho prompt và classifier ở task ≥ 2, hoặc mở băng một phần decoder. Đánh giá bằng ablation 3 task, rồi so với E1.
-   - Đã có `tools/eval_count.py --nms-iou 0.5` (commit `b2bacd0`). `run_exp.sh` giờ ghi thêm `metrics_count_test_nms0.5.*` cho mỗi run.
-     Đã tính cho các run cũ: cAcc test có NMS của E4_noF14 là 0,785 / 0,516 / 0,384 / 0,353 / **0,396** (đợt 1–5); FSA là 0,767 (không NMS: 0,684); E5 ≈ 0.
-2. Khi E0, E3, E4 (F14) và E5 xong: đánh giá mốc G2, rồi xếp A1–A9 (A1, A4, A7, A8 dùng lại task 1 của E4).
-3. Tinh chỉnh E5 trên val (`--mode knn`, nhiệt độ). V5 (độ trễ), V6 (bảng tổng hợp). Demo nếu nhóm chốt QĐ-5.
-4. Hạn credit **24/10/2026**: tải kết quả về (guide §9), xóa VM và ổ trước ngày đó.
+1. **Nhóm quyết:** chạy E3_coco (khoảng 16 giờ)? Chạy ablation nào? Đề xuất rút gọn: A6 (tách I2 và I3), A1, A2, A3, A4, tổng khoảng 41 giờ, khoảng 0,75 triệu VND on-demand. Đủ A1–A9 thì khoảng 72 giờ. Cần xem số dư thật trong Billing trước.
+2. Cải thiện khả năng học SKU mới (nút thắt của E4): lr lớn hơn hoặc nhiều epoch hơn cho prompt và classifier ở task ≥ 2, hoặc mở băng một phần decoder. Thử trên cấu hình 3 task.
+3. `tools/eval_count.py --nms-iou 0.5` đã có (commit `b2bacd0`), và `run_exp.sh` tự ghi `metrics_count_test_nms0.5.*`. Đã tính cho mọi run có ở `results/experiments/`.
+4. Tinh chỉnh E5 trên val (`--mode knn`, nhiệt độ). V5 (độ trễ), V6 (bảng tổng hợp, `tools/summarize.py`). Demo nếu nhóm chốt QĐ-5.
+5. Hạn credit **24/10/2026**: tải kết quả về (guide §9), xóa VM, ổ và snapshot trước ngày đó.
 
 ### Lưu ý kỹ thuật
 
