@@ -235,6 +235,11 @@ Mọi thông tin cần để làm tiếp nằm trong file này, `IMPLEMENTATION_
   - So sánh, với NMS:
     - học một lần: E0 cAcc 0,836, hơn IncreACO 0,7715, chủ yếu nhờ ảnh thật;
     - học tăng dần: E4 0,424, **kém** IncreACO 0,743.
+  - **Bản sao checkpoint trên Mac (ngoài repo, không commit):** `~/Documents/Do An/checkpoints/`.
+    - `FSA/task_1/`: `hf_model/` 154 MB, `task_final.pth` 167 MB, `run_info.json`, `train.log`.
+    - `E0/task_5/`: `task_final.pth` 179 MB, `run_info.json`, `train.log`. E0 không có `hf_model`.
+    - sha256 đã đối chiếu với VM, lưu ở `sha256_vm.txt`.
+    - Tải lúc 15:49 UTC 06/10. Trước đó gặp stockout L4 khoảng 20 phút; lần thử thứ 4 thì bật được.
   - **Phát hiện:** ở E4, mCCS của SKU mới xấp xỉ 1, tức tổng số không thiếu. Lỗi là đếm nhiễu theo từng ảnh: mCCD của nhóm 2–5 là 0,17–0,23, gấp khoảng 9 lần E0; nhóm 1 chỉ 0,065. Hướng rẻ tiếp theo: ngưỡng theo nhóm task và phân rã lỗi (mục 6 của file so sánh).
 
 ### Việc tiếp theo, theo thứ tự
