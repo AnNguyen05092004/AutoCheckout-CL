@@ -107,7 +107,7 @@ Trạng thái: **Xong** = đạt tiêu chí nghiệm thu trong plan; **Đang là
 - **28/09/2026**: nhóm chốt E5 = phương án b; giữ 14 snapshot ổ cũ; đẩy repo lên GitHub (public). Xong R1, R2, R3, I1–I5, B1, B2, V4, V5 (code), cấu hình mọi thí nghiệm, script VM, viết lại guide; V2 nhanh hơn khoảng 5 lần (chính xác tuyệt đối). 178 test đạt.
 - 28/09: nhóm chốt E5 = phương án b; giữ 14 snapshot ổ cũ. Kiểm tra nguồn dữ liệu: mirror HuggingFace thiếu tên file và `level`, nên vẫn cần Kaggle. Ảnh quầy RPC không cố định 1800 px (khoảng 1750–1890, vuông); DL2 đã xử lý theo từng ảnh.
 
-## Handoff (cập nhật 02/10/2026, khoảng 22:30 giờ VN — đọc phần này trước tiên)
+## Handoff (cập nhật 06/10/2026 — đọc phần này trước tiên)
 
 Mọi thông tin cần để làm tiếp nằm trong file này, `IMPLEMENTATION_PLAN.md` (v1.3 + phụ lục B, C; F13 ở §6.3), `GCP_TRAINING_GUIDE.md` và `docs/formats.md`.
 
@@ -229,19 +229,34 @@ Mọi thông tin cần để làm tiếp nằm trong file này, `IMPLEMENTATION_
     2. trên VM: `cd ~/AutoCheckout-CL && git fetch -q origin && git reset -q --hard origin/main` (lấy `run_queue.sh` mới);
     3. bỏ `#` ở dòng `E3_coco` trong `/data/runs/queue.txt` và/hoặc thêm ablation (ví dụ `A6`, `A1`…`A4`);
     4. `tmux new -d -s queue "bash ~/AutoCheckout-CL/scripts/run_queue.sh"`.
+- **06/10: so sánh với IncreACO (WACV 2021) và thêm chỉ số mCCD/mCCS cho SKU cũ/mới** (commit `38040c7`). Toàn bộ so sánh nằm ở [docs/so-sanh-IncreACO.md](docs/so-sanh-IncreACO.md).
+  - Bật VM khoảng 25 phút, chỉ để chạy lại `eval_count` (cả bản có và không có NMS) cho FSA, E0–E5, E4_noF14, mỗi run 10–40 giây; xong tắt, VM **TERMINATED**.
+  - Các chỉ số cũ không đổi (đã đối chiếu); JSON có thêm khóa `test_by_task`.
+  - So sánh, với NMS:
+    - học một lần: E0 cAcc 0,836, hơn IncreACO 0,7715, chủ yếu nhờ ảnh thật;
+    - học tăng dần: E4 0,424, **kém** IncreACO 0,743.
+  - **Phát hiện:** ở E4, mCCS của SKU mới xấp xỉ 1, tức tổng số không thiếu. Lỗi là đếm nhiễu theo từng ảnh: mCCD của nhóm 2–5 là 0,17–0,23, gấp khoảng 9 lần E0; nhóm 1 chỉ 0,065. Hướng rẻ tiếp theo: ngưỡng theo nhóm task và phân rã lỗi (mục 6 của file so sánh).
 
 ### Việc tiếp theo, theo thứ tự
 
 1. **Nhóm quyết:** chạy E3_coco (khoảng 16 giờ)? Chạy ablation nào? Đề xuất rút gọn: A6 (tách I2 và I3), A1, A2, A3, A4, tổng khoảng 41 giờ, khoảng 0,75 triệu VND on-demand. Đủ A1–A9 thì khoảng 72 giờ. Cần xem số dư thật trong Billing trước.
-2. Cải thiện khả năng học SKU mới (nút thắt của E4): lr lớn hơn hoặc nhiều epoch hơn cho prompt và classifier ở task ≥ 2, hoặc mở băng một phần decoder. Thử trên cấu hình 3 task.
-3. `tools/eval_count.py --nms-iou 0.5` đã có (commit `b2bacd0`), và `run_exp.sh` tự ghi `metrics_count_test_nms0.5.*`. Đã tính cho mọi run có ở `results/experiments/`.
-4. Tinh chỉnh E5 trên val (`--mode knn`, nhiệt độ). V5 (độ trễ), V6 (bảng tổng hợp, `tools/summarize.py`). Demo nếu nhóm chốt QĐ-5.
-5. Hạn credit **24/10/2026**: tải kết quả về (guide §9), xóa VM, ổ và snapshot trước ngày đó.
+2. Theo [docs/so-sanh-IncreACO.md](docs/so-sanh-IncreACO.md) mục 6:
+   - **A**: ngưỡng đếm theo nhóm task;
+   - **B**: phân rã lỗi đếm E4.
+
+   Cả hai không cần train lại. Sau đó **C**: run theo giao thức IncreACO (183 + 17) để có so sánh công bằng; cần ước tính giờ GPU.
+3. Cải thiện khả năng học SKU mới (nút thắt của E4): lr lớn hơn hoặc nhiều epoch hơn cho prompt và classifier ở task ≥ 2, hoặc mở băng một phần decoder. Thử trên cấu hình 3 task.
+4. `tools/eval_count.py --nms-iou 0.5` đã có (commit `b2bacd0`), và `run_exp.sh` tự ghi `metrics_count_test_nms0.5.*`. Đã tính cho mọi run có ở `results/experiments/`.
+5. Tinh chỉnh E5 trên val (`--mode knn`, nhiệt độ). V5 (độ trễ), V6 (bảng tổng hợp, `tools/summarize.py`). Demo nếu nhóm chốt QĐ-5.
+6. Hạn credit **24/10/2026**: tải kết quả về (guide §9), xóa VM, ổ và snapshot trước ngày đó.
 
 ### Lưu ý kỹ thuật
 
 - **Mac:**
-  - `.venv` dùng lại torch 2.2.2 x86_64 (Rosetta) của pyenv 3.10.13.
+  - `.venv` dùng lại torch 2.2.2 x86_64 (Rosetta) của pyenv 3.10.13. **Từ 06/10 `.venv` hỏng**, vì pyenv 3.10.13 không còn trên máy.
+    - Test không cần torch (counting, eval_count): chạy `/Library/Frameworks/Python.framework/Versions/3.10/bin/python3 -m pytest`.
+    - Toàn bộ suite và ruff: chạy trên VM.
+  - **gcloud mặc định đã đổi sang project `ai-lab-16-510409`** (06/10). Lệnh cho đồ án phải ghi rõ `--project=project-95a0d104-9d0f-4aa1-ba0`.
   - Đặt `USE_TF=0` và `HF_HUB_OFFLINE=1` (conftest đã đặt; script chạy tay thì tự đặt).
   - Mac chỉ còn khoảng 7 GB trống. zsh: dùng mảng `GC=(--zone=... --project=...)` thay cho biến chuỗi `$VM`.
   - `gcloud` cần chạy ngoài sandbox, vì DNS của mạng trường chập chờn.
