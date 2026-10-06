@@ -18,9 +18,9 @@ import argparse
 from pathlib import Path
 from typing import Any
 
-from autocheckout.cl_metrics import check_ann_md5, check_stage_meta, discover_stage_predictions, load_coco
 from pycocotools.coco import COCO
 
+from autocheckout.cl_metrics import check_ann_md5, check_stage_meta, discover_stage_predictions, load_coco
 from autocheckout.counting import (
     THRESHOLD_GRID,
     TIE_BREAK_NOTE,
