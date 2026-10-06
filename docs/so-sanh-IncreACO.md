@@ -13,6 +13,45 @@
 
 Số liệu của nhóm nằm trong `results/experiments/<run>/metrics_count_test*.json` (tập test khóa, 6.003 ảnh).
 
+## 0. Giải thích các chỉ số
+
+**Ví dụ dùng xuyên suốt mục này.** Một giỏ hàng thật có 3 Coca, 2 Pepsi và 1 gói snack (6 món). Mô hình đếm ra 3 Coca, 1 Pepsi và 2 snack: nó nhận nhầm một lon Pepsi thành snack.
+
+### Chỉ số đếm (theo bộ công cụ chính thức của RPC)
+
+Ký hiệu ↑ nghĩa là càng cao càng tốt, ↓ là càng thấp càng tốt.
+
+| Chỉ số | Ý nghĩa | Trong ví dụ |
+|---|---|---|
+| **cAcc** ↑ (checkout accuracy) | Tỉ lệ ảnh mà **mọi** SKU đều được đếm đúng, tức hóa đơn đúng hoàn toàn. Đây là chỉ số quan trọng nhất, vì chỉ cần sai 1 món là khách bị tính sai tiền | Ảnh này sai, tính là 0 |
+| **ACD** ↓ (average counting distance) | Trung bình mỗi ảnh lệch tổng cộng bao nhiêu món, cộng độ lệch của mọi SKU | \|3−3\| + \|1−2\| + \|2−1\| = **2** |
+| **mCCD** ↓ (mean category counting distance) | Với mỗi SKU: tổng độ lệch chia cho tổng số thật, cộng dồn trên mọi ảnh. Sau đó lấy trung bình trên các SKU. Có thể hiểu là "đếm sai bao nhiêu phần trăm" của mỗi SKU | Coca 0/3, Pepsi 1/2, snack 1/1 → trung bình **0,5** |
+| **mCIoU** ↑ (mean category IoU) | Với mỗi SKU: tổng min(dự đoán, thật) chia cho tổng max(dự đoán, thật). Sau đó lấy trung bình trên các SKU. Bằng 1 khi đếm khớp hoàn toàn | Coca 3/3, Pepsi 1/2, snack 1/2 → **0,67** |
+| **mCCS** → 1 (mean category confidence score, IncreACO đề xuất) | Với mỗi SKU: tổng số dự đoán chia cho tổng số thật. Sau đó lấy trung bình trên các SKU. Bằng 1 là đếm vừa đủ, nhỏ hơn 1 là đếm thiếu, lớn hơn 1 là đếm thừa | Coca 3/3, Pepsi 1/2, snack 2/1 → **1,17** |
+
+**Lưu ý về mCCS.** Thừa và thiếu có thể bù trừ nhau. Trong ví dụ, tổng số món dự đoán vẫn là 6, đúng bằng thực tế, dù hóa đơn sai. Vì vậy mCCS cho biết mô hình **có lệch về một phía không** (hay đếm thiếu hay đếm thừa), còn mCCD cho biết **sai nhiều hay ít**. Luôn phải đọc hai chỉ số này cùng nhau.
+
+### Chỉ số nhận diện
+
+- **mAP50** ↑: đo chất lượng khoanh hộp và gọi đúng tên từng sản phẩm.
+  - Một hộp dự đoán được tính là đúng khi đúng SKU và chồng lên hộp thật ít nhất 50% (IoU ≥ 0,5).
+  - Với mỗi SKU, AP tổng hợp hai yếu tố: tìm được bao nhiêu vật thật và có bao nhiêu báo nhầm, xét trên mọi mức điểm tin cậy. mAP là trung bình AP của các SKU.
+- **mmAP** (hay AP50:95) ↑: giống mAP50 nhưng khắt khe hơn. Lấy trung bình trên các mức chồng lấn từ 50% đến 95%, nên hộp phải khớp rất sát mới được điểm cao.
+- **mAP cao chưa chắc cAcc cao.** Mỗi ảnh có khoảng 12 món. Nếu mỗi món đúng với xác suất 98% thì cả ảnh đúng khoảng 0,98¹² ≈ 78%. Nếu chỉ đúng 93% thì cả ảnh đúng khoảng 42%.
+
+### Các khái niệm khác trong tài liệu
+
+- **SKU cũ / SKU mới.** Tại đợt *t*, "mới" là các SKU vừa học trong đợt *t*, "cũ" là mọi SKU học ở các đợt trước. Ký hiệu `_o` (old) và `_n` (new), ví dụ mCCD_o, mCCS_n.
+- **Nhóm 1 … nhóm 5.** Nhóm 1 là 100 SKU gốc; nhóm 2–5 là 25 SKU thêm vào ở mỗi đợt 2–5.
+- **Ngưỡng đếm.** Mô hình gán cho mỗi vật một điểm tin cậy từ 0 đến 1, và chỉ vật có điểm ≥ ngưỡng mới được đếm.
+  - Ngưỡng cao thì sót vật thật; ngưỡng thấp thì đếm cả vật báo nhầm.
+  - Ngưỡng được chọn trên tập val sao cho cAcc cao nhất, rồi giữ nguyên khi đo trên test.
+- **NMS** (lọc trùng). Khi hai hộp chồng nhau từ 50% trở lên, chỉ giữ hộp có điểm cao hơn, để một món không bị đếm hai lần.
+  - Mask R-CNN của IncreACO luôn có bước này.
+  - DETR của nhóm vốn không có, nên nhóm báo cáo cả hai bản: có và không có NMS.
+- **Độ quên.** Sau khi học thêm các đợt mới, AP của SKU cũ tụt đi bao nhiêu so với lúc vừa học xong chúng.
+- **Học một lần (oracle, cận trên)** là train cả 200 SKU cùng lúc, có đủ nhãn. **Học tăng dần** là học từng đợt, mỗi đợt chỉ có nhãn của SKU mới.
+
 ## 1. Ngưỡng cần vượt
 
 Lấy từ Bảng 1 và Bảng 3 của IncreACO, đã chuyển sang dạng 0–1:
@@ -119,7 +158,7 @@ Với E4, "SKU mới" là 25 SKU của đợt vừa học, "SKU cũ" là mọi S
 
 ## 5. Phát hiện mới từ mCCS / mCCD (06/10)
 
-mCCS của một SKU là tổng số đếm dự đoán chia cho tổng số thật. Nó bằng 1 khi đếm vừa đủ, nhỏ hơn 1 khi đếm thiếu, lớn hơn 1 khi đếm thừa. mCCD là sai số tuyệt đối, nên không bị bù trừ. Hai chỉ số cần đọc cùng nhau: mCCS gần 1 mà mCCD cao nghĩa là có ảnh thừa, có ảnh thiếu, nhưng tổng thì vừa.
+Cách đọc mCCS và mCCD xem ở mục 0. Tóm tắt: mCCS gần 1 mà mCCD cao nghĩa là có ảnh thừa, có ảnh thiếu, nhưng tổng số thì vừa.
 
 Bảng dưới là mCCD/mCCS theo nhóm SKU của từng đợt, đo sau đợt 5 (có NMS):
 
